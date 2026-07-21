@@ -490,9 +490,11 @@
 
   function applyTheme(theme) {
     const nextTheme = theme === "dark" ? "dark" : "light";
+    const isDark = nextTheme === "dark";
     document.documentElement.dataset.theme = nextTheme;
-    $("#theme-label").textContent = nextTheme === "dark" ? "浅色" : "深色";
-    $("#theme-toggle").setAttribute("aria-label", nextTheme === "dark" ? "切换浅色模式" : "切换深色模式");
+    $("#theme-label").textContent = isDark ? "夜间" : "白天";
+    $("#theme-toggle").setAttribute("aria-label", isDark ? "切换到白天模式" : "切换到夜间模式");
+    $("#theme-toggle").title = isDark ? "切换到白天模式" : "切换到夜间模式";
   }
 
   function showView(viewName) {
