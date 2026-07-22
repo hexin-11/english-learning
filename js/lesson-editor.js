@@ -25,6 +25,21 @@
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  function isAdmin() {
+    return window.CloudAuth?.isAdmin?.() === true;
+  }
+
+  function canEdit(lesson) {
+    return Boolean(lesson) && (lesson._public !== true || isAdmin());
+  }
+
+  function ensureEditable(lesson) {
+    if (canEdit(lesson)) return;
+    const error = new Error("公共课程只有管理员可以修改。你仍然可以新建或导入自己的私人课程。");
+    error.code = "PUBLIC_LESSON_READ_ONLY";
+    throw error;
+  }
+
   function normalizeWord(word, index) {
     return {
       _id: stableId(word?._id, String(index)),
@@ -94,6 +109,7 @@
   function writeState() {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryState));
+      window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       const error = new Error("浏览器本地空间不足，无法保存课程修改。");
       error.code = "STORAGE_FULL";
@@ -102,9 +118,20 @@
   }
 
   function apply(lessons) {
+    const sources = Array.isArray(lessons) ? lessons : [];
+    const sourceIds = new Set(sources.map((source) => String(source?.id || "")));
+    const relevantDeleted = (memoryState.deleted || []).filter((lessonId) => sourceIds.has(String(lessonId)));
+    if (relevantDeleted.length !== (memoryState.deleted || []).length) {
+      memoryState.deleted = relevantDeleted;
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryState)); } catch (_error) { /* no-op */ }
+    }
     const deleted = new Set(memoryState.deleted || []);
-    return (Array.isArray(lessons) ? lessons : []).filter((source) => !deleted.has(String(source.id))).map((source) => {
+    return sources.filter((source) => {
+      if (source?._public === true && !isAdmin()) return true;
+      return !deleted.has(String(source.id));
+    }).map((source) => {
       const base = prepareLesson(source);
+      if (base._public === true && !isAdmin()) return base;
       const override = memoryState.overrides[source.id];
       if (!override) return base;
       return prepareLesson({
@@ -120,6 +147,7 @@
   }
 
   function save(lesson) {
+    ensureEditable(lesson);
     const prepared = prepareLesson(lesson);
     memoryState.overrides[prepared.id] = prepared;
     writeState();
@@ -197,12 +225,14 @@
     return save(next);
   }
 
-  function forget(lessonId) {
+  function forget(lessonId, lesson) {
+    if (lesson) ensureEditable(lesson);
     delete memoryState.overrides[lessonId];
     writeState();
   }
 
-  function deleteLesson(lessonId) {
+  function deleteLesson(lessonId, lesson) {
+    if (lesson) ensureEditable(lesson);
     const normalizedId = String(lessonId || "");
     if (!normalizedId) return false;
     memoryState.deleted = [...new Set([...(memoryState.deleted || []), normalizedId])];
@@ -222,6 +252,7 @@
     removeExample,
     addSentence,
     removeSentence,
+    canEdit,
     forget,
     deleteLesson
   };

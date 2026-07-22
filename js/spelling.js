@@ -17,7 +17,9 @@
     }
   };
 
-  const baseLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
+  const publicLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
+  const ownerLessons = window.CoursePrivacy?.ownerLessonsForActiveAccount?.() || [];
+  const baseLessons = [...publicLessons, ...ownerLessons];
   const importedLessons = window.LessonImporter?.getLessons?.() || [];
   const sources = [...baseLessons, ...importedLessons].sort((left, right) => left.number - right.number);
   const lessons = window.LessonEditor?.apply?.(sources) || sources;
@@ -58,6 +60,7 @@
   function savePreferences() {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, lessonFilter }));
+      window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       // 当前页面仍可正常练习。
     }

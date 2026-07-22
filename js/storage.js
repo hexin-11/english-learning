@@ -68,6 +68,7 @@
     memoryState = normalize(nextState);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryState));
+      window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       // 浏览器禁用存储时仍保留本次页面会话中的状态。
     }

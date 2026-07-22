@@ -1,11 +1,17 @@
 (function () {
   "use strict";
 
-  const baseLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
+  const publicLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
+  const ownerLessons = window.CoursePrivacy?.ownerLessonsForActiveAccount?.() || [];
+  const baseLessons = [...publicLessons, ...ownerLessons];
   const importedLessons = window.LessonImporter?.getLessons?.() || [];
-  const lessonSources = [...baseLessons, ...importedLessons].sort((left, right) => left.number - right.number);
+  const baseLessonIds = new Set(baseLessons.map((lesson) => String(lesson.id)));
+  const lessonSources = [
+    ...baseLessons,
+    ...importedLessons.filter((lesson) => !baseLessonIds.has(String(lesson.id)))
+  ].sort((left, right) => left.number - right.number);
   const lessons = window.LessonEditor?.apply?.(lessonSources) || lessonSources;
-  const views = ["home", "lessons", "search", "favorites", "flashcards", "spelling"];
+  const views = ["home", "lessons", "search", "favorites", "flashcards", "spelling", "admin"];
   const allWords = lessons.flatMap((lesson) => {
     return lesson.words.map((word, index) => ({
       ...word,
@@ -86,6 +92,18 @@
 
   function getLesson(lessonId) {
     return lessons.find((lesson) => lesson.id === lessonId);
+  }
+
+  function isSignedInAdmin() {
+    const auth = window.CloudAuth?.getState?.();
+    return Boolean(auth?.signedIn && auth.role === "admin");
+  }
+
+  function canManageLesson(lesson) {
+    if (window.CoursePrivacy?.isOwnerLesson?.(lesson)) {
+      return window.CoursePrivacy.isOwnerAccount();
+    }
+    return Boolean(lesson) && (lesson._public !== true || isSignedInAdmin());
   }
 
   function getCurrentWord() {
@@ -180,12 +198,13 @@
   }
 
   function lessonMarkup(lesson) {
+    const editable = canManageLesson(lesson);
     const words = lesson.words.map((word, index) => wordCardMarkup({
       ...word,
       id: `${lesson.id}:${word._id || index}`,
       lessonId: lesson.id,
       lessonTitle: lesson.title
-    }, false, { lessonId: lesson.id, wordId: word._id || String(index) })).join("");
+    }, false, editable ? { lessonId: lesson.id, wordId: word._id || String(index) } : null)).join("");
 
     const sentenceButton = (sentence, extraClass, type, noteId) => `
       <article class="sentence-card ${extraClass || ""}" data-lesson-id="${lesson.id}">
@@ -193,7 +212,7 @@
         ${sentence.ipa ? `<p class="sentence-ipa">${escapeHTML(sentence.ipa)}</p>` : ""}
         <p class="translation">${escapeHTML(sentence.chinese)}</p>
         <button class="sentence-speak" type="button" data-speak="${escapeHTML(sentence.english)}" data-lesson-id="${lesson.id}">朗读整句</button>
-        <button class="remove-content-button sentence-remove" type="button" data-remove-${type}="${escapeHTML(sentence._id)}" data-lesson-id="${escapeHTML(lesson.id)}" ${noteId ? `data-note-id="${escapeHTML(noteId)}"` : ""}>${t("edit.delete")}</button>
+        ${editable ? `<button class="remove-content-button sentence-remove" type="button" data-remove-${type}="${escapeHTML(sentence._id)}" data-lesson-id="${escapeHTML(lesson.id)}" ${noteId ? `data-note-id="${escapeHTML(noteId)}"` : ""}>${t("edit.delete")}</button>` : ""}
       </article>
     `;
 
@@ -211,10 +230,10 @@
               <h4>${escapeHTML(note.title)}</h4>
               <p class="translation">${escapeHTML(note.description)}</p>
             </div>
-            <div class="note-actions">
+            ${editable ? `<div class="note-actions">
               <button class="mini-action" type="button" data-add-example="${escapeHTML(note._id)}" data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addExample")}</button>
               <button class="mini-action mini-action-danger" type="button" data-remove-note="${escapeHTML(note._id)}" data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.delete")}</button>
-            </div>
+            </div>` : ""}
           </div>
           ${structures}
           <div class="sentence-list note-examples">${examples || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
@@ -229,11 +248,11 @@
           <h3>${t("lessons.grammar")}</h3>
           <span>${t("lessons.clickWord")}</span>
         </div>
-        <button class="mini-action" type="button" data-add-note data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addGrammar")}</button>
+        ${editable ? `<button class="mini-action" type="button" data-add-note data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addGrammar")}</button>` : ""}
       </div>
       <div class="study-notes">${studyNotes || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
     `;
-    const importedMeta = lesson.imported ? `
+    const importedMeta = lesson.imported && !lesson._public ? `
       <div class="imported-lesson-meta">
         <div>
           <span class="local-badge">${t(lesson.manual ? "lessons.localCourse" : "lessons.localImport")}</span>
@@ -252,21 +271,22 @@
             <span>
               <h2>${escapeHTML(lesson.title)}</h2>
               <p>${t("lessons.wordCount", { words: lesson.words.length, sentences: getLessonSentenceCount(lesson) })}</p>
+              ${lesson._public ? `<span class="lesson-visibility-badge" data-kind="public">${t("admin.publicCourse")}</span>` : ""}
             </span>
           </span>
           <span class="lesson-summary-controls">
             <span class="summary-action"><span>${t("lessons.open")}</span></span>
             <span class="lesson-row-actions" data-lesson-actions="${escapeHTML(lesson.id)}">
-              <button class="lesson-icon-button lesson-menu-trigger" type="button" data-lesson-menu="${escapeHTML(lesson.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${t("edit.menu")}" title="${t("edit.menu")}">
+              ${editable ? `<button class="lesson-icon-button lesson-menu-trigger" type="button" data-lesson-menu="${escapeHTML(lesson.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${t("edit.menu")}" title="${t("edit.menu")}">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg>
-              </button>
+              </button>` : ""}
               <button class="lesson-icon-button lesson-add-button" type="button" data-add-lesson="${escapeHTML(lesson.id)}" aria-label="${t("edit.addLesson")}" title="${t("edit.addLesson")}">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
               </button>
-              <span class="lesson-overflow-menu" role="menu" data-lesson-menu-panel="${escapeHTML(lesson.id)}" hidden>
+              ${editable ? `<span class="lesson-overflow-menu" role="menu" data-lesson-menu-panel="${escapeHTML(lesson.id)}" hidden>
                 <button type="button" role="menuitem" data-edit-lesson="${escapeHTML(lesson.id)}">${t("edit.rename")}</button>
                 <button class="lesson-menu-danger" type="button" role="menuitem" data-delete-lesson="${escapeHTML(lesson.id)}">${t("edit.deleteLesson")}</button>
-              </span>
+              </span>` : ""}
             </span>
           </span>
         </summary>
@@ -277,7 +297,7 @@
               <h3>${escapeHTML(lesson.wordSectionTitle || t("lessons.words"))}</h3>
               <span>${t("lessons.clickRead")}</span>
             </div>
-            <button class="mini-action" type="button" data-add-word data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addWord")}</button>
+            ${editable ? `<button class="mini-action" type="button" data-add-word data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addWord")}</button>` : ""}
           </div>
           <div class="word-grid">${words || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
           ${notesSection}
@@ -286,7 +306,7 @@
               <h3>${escapeHTML(lesson.readingTitle || t("lessons.reading"))}</h3>
               <span>${t("lessons.clickWord")}</span>
             </div>
-            <button class="mini-action" type="button" data-add-sentence data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addSentence")}</button>
+            ${editable ? `<button class="mini-action" type="button" data-add-sentence data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addSentence")}</button>` : ""}
           </div>
           <div class="sentence-list">${sentences || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
         </div>
@@ -735,7 +755,8 @@
   }
 
   function showView(viewName) {
-    const activeView = views.includes(viewName) ? viewName : "home";
+    const requestedView = views.includes(viewName) ? viewName : "home";
+    const activeView = requestedView === "admin" && !isSignedInAdmin() ? "home" : requestedView;
     $$('[data-view]').forEach((section) => {
       section.hidden = section.dataset.view !== activeView;
     });
@@ -767,6 +788,11 @@
   function setupNavigation() {
     const routeFromHash = () => showView(window.location.hash.slice(1) || "home");
     window.addEventListener("hashchange", routeFromHash);
+    window.addEventListener("hexin:auth-changed", () => {
+      renderLessons();
+      window.SiteI18n?.apply?.($("#lesson-list"));
+      routeFromHash();
+    });
     routeFromHash();
 
     $("#recent-lessons").addEventListener("click", (event) => {
@@ -822,6 +848,10 @@
     const form = $("#lesson-editor-form");
     const lesson = getLesson(lessonId);
     if (!dialog || !form || !lesson) return;
+    if (!canManageLesson(lesson)) {
+      window.alert(t("admin.readonly"));
+      return;
+    }
 
     const definitions = {
       rename: { title: "edit.dialog.rename", fields: ["title"] },
@@ -883,6 +913,7 @@
       };
       try {
         if (!lesson || !window.LessonEditor) throw new Error("课程编辑器没有正确载入。");
+        if (!canManageLesson(lesson)) throw new Error(t("admin.readonly"));
         if (action === "rename") window.LessonEditor.rename(lesson, values.title);
         if (action === "word") window.LessonEditor.addWord(lesson, values);
         if (action === "note") window.LessonEditor.addNote(lesson, values);
@@ -1033,6 +1064,11 @@
 
       const lessonId = button.dataset.lessonId || button.dataset.editLesson || button.dataset.deleteLesson;
       const lesson = getLesson(lessonId);
+      const changesLesson = button.matches("[data-edit-lesson], [data-add-word], [data-add-note], [data-add-example], [data-add-sentence], [data-remove-word], [data-remove-note], [data-remove-example], [data-remove-sentence], [data-delete-lesson]");
+      if (changesLesson && lesson && !canManageLesson(lesson)) {
+        window.alert(t("admin.readonly"));
+        return;
+      }
 
       if (button.matches("[data-edit-lesson]")) {
         closeLessonMenu(false);
@@ -1065,11 +1101,9 @@
       } else if (button.matches("[data-delete-lesson]") && lesson) {
         confirmDestructiveAction(button, () => {
           if (lesson.imported) {
-            window.LessonEditor?.forget?.(lesson.id);
             window.LessonImporter?.deleteLesson?.(lesson.id);
-          } else {
-            window.LessonEditor?.deleteLesson?.(lesson.id);
           }
+          window.LessonEditor?.deleteLesson?.(lesson.id, lesson);
           window.location.reload();
         });
       }
@@ -1301,7 +1335,15 @@
     window.setTimeout(() => {
       if (deck[0] && window.WordImages?.preload) window.WordImages.preload(deck[0]);
     }, 800);
+    window.dispatchEvent(new CustomEvent("hexin:app-ready", {
+      detail: { lessonCount: lessons.length }
+    }));
   }
+
+  window.EnglishLearningApp = Object.freeze({
+    getLessons: () => JSON.parse(JSON.stringify(lessons)),
+    canManageLesson
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init, { once: true });

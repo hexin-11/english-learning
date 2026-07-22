@@ -237,6 +237,66 @@ img {
   stroke-width: 1.7;
 }
 
+.account-button {
+  display: inline-flex;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 620;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.account-button:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.account-button > svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.account-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  flex: 0 0 6px;
+}
+
+.account-status-dot[data-status="online"] {
+  background: var(--ink);
+}
+
+.account-status-dot[data-status="saving"] {
+  background: var(--muted);
+  animation: account-status-pulse 900ms ease-in-out infinite alternate;
+}
+
+.account-status-dot[data-status="error"] {
+  background: var(--muted);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--muted);
+}
+
+@keyframes account-status-pulse {
+  to { opacity: 0.28; }
+}
+
 .brand-avatar {
   width: 40px;
   height: 40px;
@@ -2067,6 +2127,265 @@ main {
   width: min(calc(100% - 32px), 520px);
 }
 
+.account-dialog {
+  width: min(calc(100% - 32px), 560px);
+}
+
+.account-dialog-content {
+  display: grid;
+  padding: 26px;
+  gap: 17px;
+}
+
+.account-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.account-dialog-close {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-dialog-close:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.account-dialog-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.7;
+}
+
+.account-dialog-description,
+.cloud-unconfigured p,
+.sync-choice p,
+.account-last-sync,
+.cloud-status,
+.cloud-privacy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.cloud-unconfigured,
+.sync-choice {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.cloud-unconfigured strong,
+.sync-choice strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.account-auth-form,
+.account-session,
+.account-settings,
+.account-recovery {
+  display: grid;
+  gap: 14px;
+}
+
+.account-auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.account-auth-tab {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.account-auth-tab:hover {
+  color: var(--ink);
+}
+
+.account-auth-tab.is-active {
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgb(15 15 15 / 8%);
+  color: var(--ink);
+}
+
+.account-auth-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.account-auth-panel[hidden],
+.account-otp-panel[hidden],
+.account-auth-form[hidden],
+.account-session[hidden],
+.account-settings[hidden],
+.account-recovery[hidden] {
+  display: none;
+}
+
+.account-auth-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.account-subpage-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.account-subpage-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.account-subpage-heading strong {
+  font-size: 16px;
+}
+
+.account-reset-panel {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-soft);
+}
+
+.account-settings-block {
+  display: grid;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-soft);
+  gap: 13px;
+}
+
+.account-settings-block > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.account-settings-block > div:first-child > strong {
+  font-size: 14px;
+}
+
+.account-otp-panel {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.account-code-input {
+  letter-spacing: .32em;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.account-wechat-panel {
+  grid-template-columns: auto 1fr;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-soft);
+  align-items: center;
+}
+
+.account-wechat-panel > .button {
+  grid-column: 1 / -1;
+}
+
+.wechat-mark {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  align-items: center;
+  justify-content: center;
+}
+
+.wechat-mark svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.wechat-mark circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.account-auth-actions,
+.account-session-actions,
+.sync-choice-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-session > strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+
+.sync-choice-actions {
+  margin-top: 12px;
+}
+
+.cloud-status:empty {
+  display: none;
+}
+
+.cloud-status[data-kind="error"] {
+  color: var(--ink);
+  font-weight: 620;
+}
+
+.cloud-privacy {
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+}
+
 .profile-avatar-editor {
   display: grid;
   padding: 16px;
@@ -3149,6 +3468,10 @@ main {
   color: var(--ink);
 }
 
+.agent-status[data-status="online"]::before {
+  background: #22c55e;
+}
+
 .agent-status[data-status="checking"]::before {
   animation: agent-pulse 1.2s ease-in-out infinite;
 }
@@ -3606,6 +3929,268 @@ html[data-theme="dark"] .agent-launcher img {
   margin: 0;
 }
 
+.account-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-identity-row > strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+
+.account-role-badge,
+.admin-role-badge,
+.lesson-visibility-badge,
+.admin-course-badge {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.account-role-badge[data-role="admin"],
+.admin-role-badge[data-role="admin"],
+.admin-course-badge[data-kind="public"],
+.lesson-visibility-badge[data-kind="public"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--page);
+}
+
+.lesson-visibility-badge {
+  margin-top: 7px;
+}
+
+.admin-view {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-access {
+  display: grid;
+  gap: 5px;
+  padding: 22px 24px;
+}
+
+.admin-access p,
+.admin-panel-heading p,
+.admin-publish-actions p,
+.admin-status,
+.admin-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.admin-access[data-kind="error"],
+.admin-access[data-kind="denied"] {
+  border-style: dashed;
+}
+
+.admin-dashboard {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-stat-card {
+  display: grid;
+  min-height: 106px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  align-content: center;
+  gap: 1px;
+}
+
+.admin-stat-card strong {
+  font-size: clamp(24px, 4vw, 36px);
+  line-height: 1.15;
+}
+
+.admin-stat-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.admin-panel-heading,
+.admin-publish-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-panel-heading h2 {
+  margin: 0 0 3px;
+  font-size: 20px;
+}
+
+.admin-panel-heading p,
+.admin-publish-actions p {
+  font-size: 12px;
+}
+
+.admin-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-course-list,
+.admin-user-list {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.admin-course-row,
+.admin-user-row {
+  display: grid;
+  min-height: 68px;
+  padding: 12px 14px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-course-row {
+  grid-template-columns: auto 38px minmax(0, 1fr) auto;
+  cursor: pointer;
+}
+
+.admin-course-row:hover {
+  background: var(--surface-hover);
+}
+
+.admin-course-row:last-child,
+.admin-user-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-course-row input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.admin-course-number,
+.admin-user-avatar {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.admin-course-copy,
+.admin-user-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.admin-course-copy strong,
+.admin-user-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-course-copy small,
+.admin-user-copy small {
+  color: var(--muted);
+}
+
+.admin-user-row {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+}
+
+.admin-empty {
+  padding: 24px;
+  text-align: center;
+}
+
+.admin-publish-actions {
+  align-items: center;
+}
+
+.admin-status {
+  min-height: 24px;
+  font-size: 12px;
+}
+
+.admin-status[data-kind="error"],
+.admin-status[data-kind="warning"] {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.admin-status[data-kind="success"] {
+  color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .admin-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-stat-card {
+    min-height: 82px;
+  }
+
+  .admin-panel,
+  .admin-access {
+    padding: 18px;
+  }
+
+  .admin-panel-heading,
+  .admin-publish-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-publish-actions .button {
+    width: 100%;
+  }
+
+  .admin-course-row {
+    grid-template-columns: auto 34px minmax(0, 1fr);
+  }
+
+  .admin-course-badge {
+    grid-column: 3;
+  }
+}
+
 .noscript {
   position: fixed;
   z-index: 300;
@@ -3742,6 +4327,17 @@ html[data-theme="dark"] .agent-launcher img {
     width: 30px;
     height: 30px;
     flex-basis: 30px;
+  }
+
+  .account-button {
+    width: 30px;
+    min-height: 30px;
+    padding: 0;
+  }
+
+  .account-button-label,
+  .account-status-dot {
+    display: none;
   }
 
   .brand strong {
@@ -4207,6 +4803,20 @@ html[data-theme="dark"] .agent-launcher img {
     width: 36px;
     height: 36px;
     flex-basis: 36px;
+  }
+
+  .brand strong {
+    max-width: 92px;
+  }
+
+  .account-dialog-content {
+    padding: 21px 18px;
+  }
+
+  .account-auth-actions .button,
+  .account-session-actions .button,
+  .sync-choice-actions .button {
+    width: 100%;
   }
 
   .theme-toggle {

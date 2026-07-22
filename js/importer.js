@@ -115,6 +115,7 @@
   function writeLessons(lessons) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lessons));
+      window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       const error = new Error("浏览器本地空间不足，无法保存这节课。请减少内容后重试。");
       error.code = "STORAGE_FULL";

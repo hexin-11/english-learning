@@ -5,7 +5,8 @@
   "description": "何鑫的英语学习网站与小何学习助手",
   "scripts": {
     "start": "node server/server.js",
-    "dev": "node server/server.js"
+    "dev": "node server/server.js",
+    "test": "node tests/account-workspace.test.cjs && node tests/profile.test.cjs && node tests/course-privacy.test.cjs && node tests/password-auth.test.cjs"
   },
   "engines": {
     "node": ">=20"

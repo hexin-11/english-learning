@@ -6,23 +6,28 @@
   <meta name="description" content="何鑫天下第一帅的个人英语学习网站，支持课程点读、单词搜索、单词卡与本地学习进度。">
   <meta name="color-scheme" content="light dark">
   <title>何鑫天下第一帅</title>
-  <link rel="stylesheet" href="css/style.css?v=20260722aq">
-  <script src="data/lessons.js?v=20260722a" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=20260722av">
+  <script src="data/lessons.js?v=20260722b" defer></script>
+  <script src="js/course-privacy.js?v=20260722a" defer></script>
+  <script src="js/public-content.js?v=20260722b" defer></script>
   <script src="data/pronunciations.js?v=20260722a" defer></script>
-  <script src="js/storage.js?v=20260722z" defer></script>
+  <script src="js/account-workspace.js?v=20260722c" defer></script>
+  <script src="js/storage.js?v=20260722aa" defer></script>
   <script src="js/speech.js?v=20260722l" defer></script>
   <script src="js/dictionary.js?v=20260722a" defer></script>
-  <script src="js/images.js?v=20260722p" defer></script>
-  <script src="js/importer.js?v=20260722r" defer></script>
-  <script src="js/i18n.js?v=20260722u" defer></script>
-  <script src="js/profile.js?v=20260722a" defer></script>
+  <script src="js/images.js?v=20260722q" defer></script>
+  <script src="js/importer.js?v=20260722s" defer></script>
+  <script src="js/i18n.js?v=20260722y" defer></script>
+  <script src="js/profile.js?v=20260722e" defer></script>
   <script src="js/weather.js?v=20260722z" defer></script>
-  <script src="js/config.js?v=20260722u" defer></script>
-  <script src="js/agent.js?v=20260722ae" defer></script>
-  <script src="js/lesson-editor.js?v=20260722r" defer></script>
+  <script src="js/config.js?v=20260722w" defer></script>
+  <script src="js/cloud-sync.js?v=20260722h" defer></script>
+  <script src="js/admin.js?v=20260722c" defer></script>
+  <script src="js/agent.js?v=20260722af" defer></script>
+  <script src="js/lesson-editor.js?v=20260722v" defer></script>
   <script src="js/exporter.js?v=20260722j" defer></script>
-  <script src="js/spelling.js?v=20260722ag" defer></script>
-  <script src="js/app.js?v=20260722ad" defer></script>
+  <script src="js/spelling.js?v=20260722ai" defer></script>
+  <script src="js/app.js?v=20260722aj" defer></script>
 </head>
 <body>
   <div class="weather-atmosphere" id="weather-atmosphere" aria-hidden="true" hidden></div>
@@ -33,14 +38,19 @@
     <div class="header-inner">
       <div class="brand-area">
         <a class="brand" href="#home" aria-label="返回首页">
-          <img class="brand-avatar" src="assets/avatar.jpg" alt="何鑫天下第一帅的头像" data-profile-avatar>
+          <img class="brand-avatar" src="assets/guest-avatar.svg" alt="访客头像" data-profile-avatar>
           <span>
-            <strong data-profile-name>何鑫天下第一帅</strong>
+            <strong data-profile-name>访客</strong>
             <small>Personal English space</small>
           </span>
         </a>
-        <button class="profile-edit-trigger" id="profile-edit-trigger" type="button" aria-label="编辑个人资料" data-i18n-aria="profile.edit">
+        <button class="profile-edit-trigger" id="profile-edit-trigger" type="button" aria-label="编辑个人资料" data-i18n-aria="profile.edit" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"></path><path d="m14.5 6.7 2.8 2.8"></path></svg>
+        </button>
+        <button class="account-button" id="account-button" type="button" aria-label="登录与云同步" data-i18n-aria="cloud.open">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 20c.5-4 2.7-6 6.5-6s6 2 6.5 6"></path></svg>
+          <span class="account-button-label" id="account-button-label">登录</span>
+          <span class="account-status-dot" id="account-status-dot" data-status="local" aria-hidden="true"></span>
         </button>
       </div>
 
@@ -51,6 +61,7 @@
         <a href="#favorites" data-nav="favorites" data-i18n="nav.favorites">收藏</a>
         <a href="#flashcards" data-nav="flashcards" data-i18n="nav.flashcards">单词卡</a>
         <a href="#spelling" data-nav="spelling"><span id="spelling-nav-label">拼写</span></a>
+        <a href="#admin" data-nav="admin" id="admin-nav" data-i18n="admin.nav" hidden>管理台</a>
       </nav>
 
       <label class="language-picker">
@@ -146,7 +157,7 @@
     <section class="app-view home-view" data-view="home" aria-labelledby="home-title">
       <div class="hero panel">
         <div class="hero-copy">
-          <span class="eyebrow" data-profile-space>何鑫天下第一帅的个人学习空间</span>
+          <span class="eyebrow" data-profile-space>访客的个人学习空间</span>
           <h1 id="home-title">归零，更新，<br>重启，向上。</h1>
           <p lang="en">Return to zero, update, restart, go up.</p>
           <div class="hero-actions">
@@ -155,7 +166,7 @@
           </div>
         </div>
         <div class="hero-profile" aria-label="个人学习空间">
-          <img src="assets/avatar.jpg" alt="何鑫天下第一帅的头像" data-profile-avatar>
+          <img src="assets/guest-avatar.svg" alt="访客头像" data-profile-avatar>
           <div>
             <span class="profile-label">TODAY'S NOTE</span>
             <strong>Listen · Read · Remember</strong>
@@ -482,6 +493,62 @@
         </aside>
       </div>
     </section>
+
+    <section class="app-view admin-view" data-view="admin" aria-labelledby="admin-title" hidden>
+      <div class="page-heading">
+        <span class="eyebrow">OWNER · ADMIN</span>
+        <h1 id="admin-title" data-i18n="admin.title">管理员控制台</h1>
+        <p data-i18n="admin.description">发布全站公共课程并查看账号状态。云端权限由 Supabase RLS 强制保护。</p>
+      </div>
+
+      <section class="admin-access panel" id="admin-access" role="status" aria-live="polite">
+        <strong id="admin-access-title" data-i18n="admin.checking">正在核对管理员权限</strong>
+        <p id="admin-access-message" data-i18n="admin.checkingHint">只有管理员账号可以打开这里。</p>
+      </section>
+
+      <div class="admin-dashboard" id="admin-dashboard" hidden>
+        <div class="admin-stats" id="admin-stats"></div>
+
+        <section class="admin-panel panel" aria-labelledby="admin-publish-title">
+          <div class="admin-panel-heading">
+            <div>
+              <span class="eyebrow">PUBLIC LESSONS</span>
+              <h2 id="admin-publish-title" data-i18n="admin.publishTitle">发布公共课程</h2>
+              <p data-i18n="admin.publishHint">勾选要公开的课程。未勾选的个人课程不会上传，也不会被其他用户看到。</p>
+            </div>
+            <span class="admin-role-badge" data-role="admin" data-i18n="admin.adminOnly">仅管理员</span>
+          </div>
+
+          <div class="admin-toolbar">
+            <button class="button button-secondary" id="admin-select-public" type="button" data-i18n="admin.selectPublic">只选当前公共课程</button>
+            <button class="button button-quiet" id="admin-select-all" type="button" data-i18n="admin.selectAll">全选</button>
+            <button class="button button-quiet" id="admin-refresh" type="button" data-i18n="admin.refresh">刷新云端状态</button>
+          </div>
+
+          <div class="admin-course-list" id="admin-course-list"></div>
+
+          <div class="admin-publish-actions">
+            <div>
+              <strong id="admin-selection-summary"></strong>
+              <p id="admin-public-meta"></p>
+            </div>
+            <button class="button button-primary" id="admin-publish" type="button" data-i18n="admin.publish">发布为全站公共课程</button>
+          </div>
+          <p class="admin-status" id="admin-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="admin-panel panel" aria-labelledby="admin-users-title">
+          <div class="admin-panel-heading">
+            <div>
+              <span class="eyebrow">ACCOUNTS</span>
+              <h2 id="admin-users-title" data-i18n="admin.usersTitle">账号列表</h2>
+              <p data-i18n="admin.usersHint">普通用户只能读取和同步自己的数据，不能发布公共课程。</p>
+            </div>
+          </div>
+          <div class="admin-user-list" id="admin-user-list"></div>
+        </section>
+      </div>
+    </section>
   </main>
 
   <aside class="agent-widget" id="agent-widget">
@@ -615,9 +682,179 @@
     </form>
   </dialog>
 
+  <dialog class="lesson-editor-dialog account-dialog" id="account-dialog" aria-labelledby="account-dialog-title">
+    <div class="account-dialog-content">
+      <div class="account-dialog-heading">
+        <div class="dialog-heading">
+          <span class="eyebrow">ACCOUNT · CLOUD SYNC</span>
+          <h2 id="account-dialog-title" data-i18n="cloud.title">账号与云同步</h2>
+        </div>
+        <button class="account-dialog-close" id="account-dialog-close" type="button" aria-label="关闭" data-i18n-aria="cloud.close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+        </button>
+      </div>
+
+      <p class="account-dialog-description" data-i18n="cloud.description">登录后，可在不同手机和电脑之间同步聊天、课程与学习记录。</p>
+
+      <section class="cloud-unconfigured" id="cloud-unconfigured" hidden>
+        <strong data-i18n="cloud.notConfiguredTitle">云同步尚未配置</strong>
+        <p data-i18n="cloud.notConfiguredText">请先创建 Supabase 项目并填写公开项目地址与 publishable key。本地学习功能不受影响。</p>
+      </section>
+
+      <section class="account-auth-form" id="account-auth-form">
+        <div class="account-auth-tabs" role="tablist" aria-label="账号入口" data-i18n-aria="cloud.authPages">
+          <button class="account-auth-tab is-active" id="account-login-tab" type="button" role="tab" aria-selected="true" aria-controls="account-login-panel" data-auth-view="login" data-i18n="cloud.loginPage">登录</button>
+          <button class="account-auth-tab" id="account-register-tab" type="button" role="tab" aria-selected="false" aria-controls="account-register-panel" data-auth-view="register" data-i18n="cloud.registerPage">注册</button>
+        </div>
+
+        <form class="account-auth-panel" id="account-login-panel" role="tabpanel" aria-labelledby="account-login-tab">
+          <label class="editor-field">
+            <span data-i18n="cloud.email">邮箱</span>
+            <input id="account-login-email" type="email" maxlength="254" autocomplete="email" required>
+          </label>
+          <label class="editor-field">
+            <span data-i18n="cloud.password">密码</span>
+            <input id="account-login-password" type="password" minlength="8" maxlength="72" autocomplete="current-password" required>
+          </label>
+          <p class="account-auth-hint" data-i18n="cloud.loginHint">注册并验证邮箱后，之后直接使用密码登录。</p>
+          <div class="account-auth-actions">
+            <button class="button button-primary" id="account-password-sign-in" type="submit" data-i18n="cloud.signIn">登录</button>
+            <button class="button button-quiet" id="account-forgot-password" type="button" data-i18n="cloud.forgotPassword">设置或忘记密码</button>
+          </div>
+        </form>
+
+        <form class="account-auth-panel" id="account-register-panel" role="tabpanel" aria-labelledby="account-register-tab" hidden>
+          <label class="editor-field">
+            <span data-i18n="cloud.email">邮箱</span>
+            <input id="account-register-email" type="email" maxlength="254" autocomplete="email" required>
+          </label>
+          <label class="editor-field">
+            <span data-i18n="cloud.password">密码</span>
+            <input id="account-register-password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+          </label>
+          <label class="editor-field">
+            <span data-i18n="cloud.confirmPassword">确认密码</span>
+            <input id="account-register-confirm" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+          </label>
+          <p class="account-auth-hint" data-i18n="cloud.registerHint">首次注册需要打开验证邮件；验证完成后即可使用密码登录。</p>
+          <div class="account-auth-actions">
+            <button class="button button-primary" id="account-password-sign-up" type="submit" data-i18n="cloud.createAccount">创建账号</button>
+          </div>
+        </form>
+
+        <form class="account-auth-panel account-reset-panel" id="account-reset-panel" hidden>
+          <div class="account-subpage-heading">
+            <div>
+              <strong data-i18n="cloud.resetTitle">设置或重置密码</strong>
+              <p class="account-auth-hint" data-i18n="cloud.resetHint">已有验证码账号也可以在这里设置密码，不需要重新注册。</p>
+            </div>
+            <button class="button button-quiet" id="account-reset-back" type="button" data-i18n="cloud.backToLogin">返回登录</button>
+          </div>
+          <label class="editor-field">
+            <span data-i18n="cloud.email">邮箱</span>
+            <input id="account-reset-email" type="email" maxlength="254" autocomplete="email" required>
+          </label>
+          <div class="account-auth-actions">
+            <button class="button button-primary" id="account-send-reset" type="submit" data-i18n="cloud.sendResetLink">发送设置邮件</button>
+          </div>
+        </form>
+      </section>
+
+      <form class="account-recovery" id="account-recovery" hidden>
+        <div class="account-subpage-heading">
+          <div>
+            <span class="profile-field-label" data-i18n="cloud.recoveryLabel">安全设置</span>
+            <strong data-i18n="cloud.chooseNewPassword">设置新密码</strong>
+          </div>
+        </div>
+        <label class="editor-field">
+          <span data-i18n="cloud.newPassword">新密码</span>
+          <input id="account-recovery-password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+        </label>
+        <label class="editor-field">
+          <span data-i18n="cloud.confirmPassword">确认密码</span>
+          <input id="account-recovery-confirm" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+        </label>
+        <div class="account-auth-actions">
+          <button class="button button-primary" id="account-save-recovery-password" type="submit" data-i18n="cloud.saveNewPassword">保存新密码</button>
+        </div>
+      </form>
+
+      <section class="account-session" id="account-session" hidden>
+        <span class="profile-field-label" data-i18n="cloud.signedInAs">当前账号</span>
+        <div class="account-identity-row">
+          <strong id="account-user-email"></strong>
+          <span class="account-role-badge" id="account-role-badge" hidden></span>
+        </div>
+        <p class="account-last-sync" id="account-last-sync"></p>
+
+        <div class="sync-choice" id="sync-choice" hidden>
+          <strong data-i18n="cloud.conflictTitle">请选择首次同步方式</strong>
+          <p data-i18n="cloud.conflictText">这台设备和云端都有学习数据。请选择保留哪一份，避免自动覆盖。</p>
+          <div class="sync-choice-actions">
+            <button class="button button-secondary" id="sync-download" type="button" data-i18n="cloud.download">使用云端数据</button>
+            <button class="button button-secondary" id="sync-upload" type="button" data-i18n="cloud.upload">上传本机数据</button>
+          </div>
+        </div>
+
+        <div class="account-session-actions">
+          <a class="button button-secondary" id="open-admin-console" href="#admin" data-i18n="admin.open" hidden>管理员控制台</a>
+          <button class="button button-primary" id="sync-now" type="button" data-i18n="cloud.syncNow">立即同步</button>
+          <button class="button button-secondary" id="account-open-settings" type="button" data-i18n="cloud.accountSettings">账号设置</button>
+          <button class="button button-quiet" id="account-sign-out" type="button" data-i18n="cloud.signOut">退出登录</button>
+        </div>
+      </section>
+
+      <section class="account-settings" id="account-settings" hidden>
+        <div class="account-subpage-heading">
+          <div>
+            <span class="profile-field-label" data-i18n="cloud.security">账号安全</span>
+            <strong data-i18n="cloud.accountSettings">账号设置</strong>
+          </div>
+          <button class="button button-quiet" id="account-settings-back" type="button" data-i18n="cloud.backToAccount">返回账号</button>
+        </div>
+
+        <form class="account-settings-block" id="account-change-email-form">
+          <div>
+            <strong data-i18n="cloud.changeEmailTitle">修改邮箱</strong>
+            <p class="account-auth-hint" data-i18n="cloud.changeEmailHint">确认新邮箱后，使用新邮箱和原密码登录，学习数据不会改变。</p>
+          </div>
+          <label class="editor-field">
+            <span data-i18n="cloud.newEmail">新邮箱</span>
+            <input id="account-new-email" type="email" maxlength="254" autocomplete="email" required>
+          </label>
+          <div class="account-auth-actions">
+            <button class="button button-secondary" id="account-update-email" type="submit" data-i18n="cloud.sendEmailChange">发送确认邮件</button>
+          </div>
+        </form>
+
+        <form class="account-settings-block" id="account-change-password-form">
+          <div>
+            <strong data-i18n="cloud.changePasswordTitle">修改密码</strong>
+            <p class="account-auth-hint" data-i18n="cloud.passwordRule">密码至少 8 位，请不要与其他网站共用。</p>
+          </div>
+          <label class="editor-field">
+            <span data-i18n="cloud.newPassword">新密码</span>
+            <input id="account-new-password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+          </label>
+          <label class="editor-field">
+            <span data-i18n="cloud.confirmPassword">确认密码</span>
+            <input id="account-new-password-confirm" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+          </label>
+          <div class="account-auth-actions">
+            <button class="button button-primary" id="account-update-password" type="submit" data-i18n="cloud.updatePassword">保存密码</button>
+          </div>
+        </form>
+      </section>
+
+      <p class="cloud-status" id="cloud-status" role="status" aria-live="polite"></p>
+      <p class="cloud-privacy" data-i18n="cloud.privacy">每个账号只能访问自己的数据；原始 PDF、Word 和图片不会上传。</p>
+    </div>
+  </dialog>
+
   <footer class="site-footer">
-    <p data-profile-name>何鑫天下第一帅</p>
-    <p>无需登录 · 数据保存在本机 · 支持 GitHub Pages</p>
+    <p data-profile-name>访客</p>
+    <p>无需登录也可使用 · 登录后支持云同步 · 支持 GitHub Pages</p>
   </footer>
 
   <noscript>

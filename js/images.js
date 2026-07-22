@@ -170,6 +170,7 @@
     try {
       window.localStorage.setItem(CACHE_KEY, JSON.stringify(memoryCache));
       window.localStorage.setItem(CHOICE_KEY, JSON.stringify(choices));
+      window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: CHOICE_KEY } }));
     } catch (_error) {
       // 存储不可用时，仍在当前页面会话中缓存。
     }

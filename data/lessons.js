@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  window.ENGLISH_LESSONS = [
+  window.OWNER_LESSONS = [
     {
       id: "lesson-1",
       number: 1,

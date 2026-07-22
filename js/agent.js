@@ -196,6 +196,7 @@
     state.messages = state.messages.slice(-MAX_STORED_MESSAGES);
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.messages));
+      window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       // 对话仍可继续，只是不再持久保存。
     }
