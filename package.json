@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js",
-    "test": "node tests/account-workspace.test.cjs && node tests/profile.test.cjs && node tests/course-privacy.test.cjs && node tests/password-auth.test.cjs"
+    "test": "node tests/account-workspace.test.cjs && node tests/profile.test.cjs && node tests/course-privacy.test.cjs && node tests/password-auth.test.cjs && node tests/agent-vision.test.cjs"
   },
   "engines": {
     "node": ">=20"

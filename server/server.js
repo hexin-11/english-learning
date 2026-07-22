@@ -13,12 +13,15 @@ const PORT = numberInRange(process.env.PORT, 8787, 1, 65535);
 const HOST = String(process.env.HOST || "0.0.0.0").trim();
 const MODEL = String(process.env.GEMINI_MODEL || "gemini-3.5-flash").trim();
 const API_KEY = String(process.env.GEMINI_API_KEY || "").trim();
-const BODY_LIMIT = 32 * 1024;
+const BODY_LIMIT = 4 * 1024 * 1024;
 const MESSAGE_LIMIT = 2000;
 const HISTORY_LIMIT = 12;
+const IMAGE_BYTE_LIMIT = 1536 * 1024;
+const IMAGE_BASE64_LIMIT = Math.ceil(IMAGE_BYTE_LIMIT * 4 / 3) + 8;
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX = 30;
-const REQUEST_TIMEOUT_MS = 40 * 1000;
+const REQUEST_TIMEOUT_MS = 60 * 1000;
 const defaultOrigins = [
   "http://127.0.0.1:4173",
   "http://localhost:4173",
@@ -141,6 +144,59 @@ function cleanHistory(value) {
   });
 }
 
+function matchesImageSignature(bytes, mimeType) {
+  if (mimeType === "image/jpeg") {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (mimeType === "image/png") {
+    return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (mimeType === "image/webp") {
+    return bytes.length >= 12
+      && bytes.subarray(0, 4).toString("ascii") === "RIFF"
+      && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+  }
+  return false;
+}
+
+function cleanImage(value) {
+  if (value == null) return null;
+  if (!value || typeof value !== "object") {
+    const error = new Error("INVALID_IMAGE");
+    error.statusCode = 400;
+    throw error;
+  }
+  const mimeType = String(value.mimeType || "").trim().toLowerCase();
+  const data = typeof value.data === "string" ? value.data.trim() : "";
+  if (!IMAGE_TYPES.has(mimeType)
+      || !data
+      || data.length > IMAGE_BASE64_LIMIT
+      || data.length % 4 !== 0
+      || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+    const error = new Error("INVALID_IMAGE");
+    error.statusCode = 400;
+    throw error;
+  }
+  const bytes = Buffer.from(data, "base64");
+  if (!bytes.length || bytes.length > IMAGE_BYTE_LIMIT) {
+    const error = new Error("IMAGE_TOO_LARGE");
+    error.statusCode = 413;
+    throw error;
+  }
+  const normalized = bytes.toString("base64").replace(/=+$/, "");
+  if (normalized !== data.replace(/=+$/, "")) {
+    const error = new Error("INVALID_IMAGE");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!matchesImageSignature(bytes, mimeType)) {
+    const error = new Error("INVALID_IMAGE");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { mimeType, data };
+}
+
 function cleanAssistantText(value) {
   return String(value || "")
     .replace(/\r\n?/g, "\n")
@@ -166,17 +222,26 @@ function outputText(payload) {
   return cleanAssistantText(text);
 }
 
-function geminiContents(history, message) {
+function geminiContents(history, message, image) {
+  const latestParts = [{ text: message }];
+  if (image) {
+    latestParts.push({
+      inlineData: {
+        mimeType: image.mimeType,
+        data: image.data
+      }
+    });
+  }
   return [
     ...history.map((item) => ({
       role: item.role === "assistant" ? "model" : "user",
       parts: [{ text: item.content }]
     })),
-    { role: "user", parts: [{ text: message }] }
+    { role: "user", parts: latestParts }
   ];
 }
 
-async function createAgentReply(message, history) {
+async function createAgentReply(message, history, image) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -189,10 +254,11 @@ async function createAgentReply(message, history) {
       },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: AGENT_PROMPT }] },
-        contents: geminiContents(history, message),
+        contents: geminiContents(history, message, image),
         generationConfig: {
           maxOutputTokens: 900,
-          temperature: 0.7
+          temperature: 0.7,
+          ...(image ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {})
         }
       }),
       signal: controller.signal
@@ -240,7 +306,14 @@ async function handle(req, res) {
 
   const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
   if (req.method === "GET" && url.pathname === "/health") {
-    sendJson(res, 200, { ok: true, service: "xiaohe-agent", provider: "gemini", model: MODEL, configured: Boolean(API_KEY) });
+    sendJson(res, 200, {
+      ok: true,
+      service: "xiaohe-agent",
+      provider: "gemini",
+      model: MODEL,
+      configured: Boolean(API_KEY),
+      capabilities: { text: true, vision: true }
+    });
     return;
   }
 
@@ -262,13 +335,14 @@ async function handle(req, res) {
 
   try {
     const body = await readJson(req);
-    const message = cleanMessage(body.message);
+    const image = cleanImage(body.image);
+    const message = cleanMessage(body.message) || (image ? "请仔细识别这张图片，并结合英语学习给出准确、简洁的说明。" : "");
     const history = cleanHistory(body.history);
     if (!message) {
       sendJson(res, 400, { error: "EMPTY_MESSAGE", message: "请输入想对小何说的话。" });
       return;
     }
-    const result = await createAgentReply(message, history);
+    const result = await createAgentReply(message, history, image);
     sendJson(res, 200, { reply: result.reply, provider: "gemini", model: MODEL, requestId: result.requestId });
   } catch (error) {
     if (res.destroyed) return;
@@ -278,8 +352,8 @@ async function handle(req, res) {
     }
     const status = error?.statusCode || 500;
     const messages = {
-      400: "请求格式不正确。",
-      413: "消息太长了，请缩短后再试。",
+      400: "图片或消息格式不正确，请重新选择图片后再试。",
+      413: "图片或消息过大，请换一张更小的图片。",
       429: "Gemini 免费额度或当前速率已用完，请稍后再试；每日额度会自动重置。",
       503: "小何的 Gemini API 密钥尚未配置或不可用。",
       502: "小何暂时无法连接智能服务，请稍后重试。"
@@ -296,7 +370,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`小何后端已启动：http://127.0.0.1:${PORT}`);
-  console.log(`模型：${MODEL} · 密钥：${API_KEY ? "已安全加载" : "未配置"}`);
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    console.log(`小何后端已启动：http://127.0.0.1:${PORT}`);
+    console.log(`模型：${MODEL} · 密钥：${API_KEY ? "已安全加载" : "未配置"}`);
+  });
+}
+
+module.exports = { cleanImage, geminiContents, matchesImageSignature };

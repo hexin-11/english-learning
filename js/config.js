@@ -6,7 +6,9 @@
   // 部署 GitHub Pages 时，把空字符串改为已部署的 HTTPS 后端地址。
   // Gemini 密钥只放在后端环境变量中，绝不能写进此文件。
   window.APP_CONFIG = Object.freeze({
-    agentApiBase: isLocal ? "http://127.0.0.1:8787" : "",
+    agentApiBase: isLocal
+      ? "http://127.0.0.1:8787"
+      : "https://xiaohe-english-agent-hexin11.onrender.com",
 
     // Supabase 项目 URL 与 publishable key 可以安全放在公开前端。
     // 不要在这里填写 secret key 或 service_role key。

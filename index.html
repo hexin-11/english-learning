@@ -6,7 +6,7 @@
   <meta name="description" content="何鑫天下第一帅的个人英语学习网站，支持课程点读、单词搜索、单词卡与本地学习进度。">
   <meta name="color-scheme" content="light dark">
   <title>何鑫天下第一帅</title>
-  <link rel="stylesheet" href="css/style.css?v=20260722av">
+  <link rel="stylesheet" href="css/style.css?v=20260722aw">
   <script src="data/lessons.js?v=20260722b" defer></script>
   <script src="js/course-privacy.js?v=20260722a" defer></script>
   <script src="js/public-content.js?v=20260722b" defer></script>
@@ -20,10 +20,10 @@
   <script src="js/i18n.js?v=20260722y" defer></script>
   <script src="js/profile.js?v=20260722e" defer></script>
   <script src="js/weather.js?v=20260722z" defer></script>
-  <script src="js/config.js?v=20260722w" defer></script>
+  <script src="js/config.js?v=20260722x" defer></script>
   <script src="js/cloud-sync.js?v=20260722h" defer></script>
   <script src="js/admin.js?v=20260722c" defer></script>
-  <script src="js/agent.js?v=20260722af" defer></script>
+  <script src="js/agent.js?v=20260722ag" defer></script>
   <script src="js/lesson-editor.js?v=20260722v" defer></script>
   <script src="js/exporter.js?v=20260722j" defer></script>
   <script src="js/spelling.js?v=20260722ai" defer></script>
@@ -580,6 +580,21 @@
       </div>
 
       <form class="agent-composer" id="agent-form">
+        <div class="agent-attachment" id="agent-attachment" hidden>
+          <img id="agent-attachment-preview" alt="" width="52" height="52" hidden>
+          <div class="agent-attachment-copy">
+            <strong id="agent-attachment-name"></strong>
+            <small id="agent-attachment-meta" role="status" aria-live="polite"></small>
+          </div>
+          <button class="agent-attachment-remove" id="agent-attachment-remove" type="button" aria-label="移除图片">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"></path></svg>
+          </button>
+        </div>
+        <label class="agent-attach" id="agent-attach" for="agent-image-input" title="添加图片">
+          <span class="sr-only">添加图片</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8.5" cy="10" r="1.5"></circle><path d="m5 17 4.5-4 3 2.5 2.5-2 4 3.5"></path></svg>
+        </label>
+        <input class="sr-only" id="agent-image-input" type="file" accept="image/jpeg,image/png,image/webp">
         <label class="sr-only" for="agent-input">向小何发送消息</label>
         <textarea id="agent-input" rows="1" maxlength="2000" placeholder="问小何英语问题…"></textarea>
         <button class="agent-send" id="agent-send" type="submit" aria-label="发送">

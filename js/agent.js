@@ -5,9 +5,13 @@
   const POSITION_STORAGE_KEY = "hexin-xiaohe-position:v1";
   const MAX_STORED_MESSAGES = 20;
   const MAX_SENT_HISTORY = 12;
-  const REQUEST_TIMEOUT_MS = 45000;
+  const REQUEST_TIMEOUT_MS = 65000;
   const DRAG_THRESHOLD = 5;
   const VIEWPORT_MARGIN = 8;
+  const MAX_IMAGE_FILE_BYTES = 12 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 1400 * 1024;
+  const MAX_IMAGE_DIMENSION = 2048;
+  const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
   const copy = {
     zh: {
@@ -26,6 +30,14 @@
       correct: "批改句子",
       explain: "解释单词",
       grammar: "解析语法",
+      attach: "添加图片",
+      removeImage: "移除图片",
+      imageOptimizing: "正在优化图片，保留文字与细节…",
+      imageReady: "已优化至 {size}，图片只用于本次识别",
+      imageTooLarge: "图片过大，请选择小于 12 MB 的图片。",
+      imageInvalid: "请选择 JPG、PNG 或 WebP 图片。",
+      imageFailed: "图片处理失败，请换一张重试。",
+      imagePrompt: "请仔细识别这张图片。先说明你实际看见的内容；如果有英文，请准确抄写、翻译并讲解，不确定的文字要明确标出。",
       dialoguePrompt: "请和我进行一段适合初学者的英语对话，每次只说一到两句，并在需要时纠正我。",
       correctPrompt: "请帮我批改这句话：",
       explainPrompt: "请解释这个单词，并给我两个带中文翻译的例句：",
@@ -55,6 +67,14 @@
       correct: "Correct a sentence",
       explain: "Explain a word",
       grammar: "Analyse grammar",
+      attach: "Add an image",
+      removeImage: "Remove image",
+      imageOptimizing: "Optimising the image while keeping text and details…",
+      imageReady: "Optimised to {size}; used only for this request",
+      imageTooLarge: "Choose an image smaller than 12 MB.",
+      imageInvalid: "Choose a JPG, PNG, or WebP image.",
+      imageFailed: "The image could not be processed. Try another one.",
+      imagePrompt: "Analyse this image carefully. First describe only what you can actually see. If it contains English, transcribe it accurately, translate it, and explain it. Mark any uncertain text clearly.",
       dialoguePrompt: "Have a beginner-friendly English conversation with me. Use only one or two sentences each turn and correct me when needed.",
       correctPrompt: "Please correct this sentence: ",
       explainPrompt: "Please explain this word and give me two examples with Chinese translations: ",
@@ -84,6 +104,14 @@
       correct: "문장 교정",
       explain: "단어 설명",
       grammar: "문법 분석",
+      attach: "이미지 추가",
+      removeImage: "이미지 제거",
+      imageOptimizing: "글자와 세부 정보를 유지하며 이미지를 최적화하는 중…",
+      imageReady: "{size}로 최적화됨 · 이번 요청에만 사용",
+      imageTooLarge: "12MB보다 작은 이미지를 선택하세요.",
+      imageInvalid: "JPG, PNG 또는 WebP 이미지를 선택하세요.",
+      imageFailed: "이미지를 처리하지 못했습니다. 다른 이미지를 사용해 보세요.",
+      imagePrompt: "이 이미지를 자세히 분석해 주세요. 실제로 보이는 내용부터 설명하고, 영어가 있다면 정확히 옮겨 적고 번역과 설명을 제공하세요. 확실하지 않은 글자는 명확히 표시하세요.",
       dialoguePrompt: "초보자 수준으로 영어 대화를 해 주세요. 한 번에 한두 문장만 말하고 필요할 때 제 문장을 고쳐 주세요.",
       correctPrompt: "이 문장을 고쳐 주세요: ",
       explainPrompt: "이 단어를 설명하고 중국어 번역이 있는 예문 두 개를 주세요: ",
@@ -113,6 +141,14 @@
       correct: "文を添削",
       explain: "単語を説明",
       grammar: "文法を解析",
+      attach: "画像を追加",
+      removeImage: "画像を削除",
+      imageOptimizing: "文字と細部を保ちながら画像を最適化しています…",
+      imageReady: "{size}に最適化済み・今回の認識だけに使用",
+      imageTooLarge: "12MB未満の画像を選んでください。",
+      imageInvalid: "JPG、PNG、WebP画像を選んでください。",
+      imageFailed: "画像を処理できませんでした。別の画像をお試しください。",
+      imagePrompt: "この画像を注意深く分析してください。実際に見える内容を先に説明し、英語が含まれる場合は正確に書き起こして翻訳・解説してください。不確かな文字は明示してください。",
       dialoguePrompt: "初心者向けの英会話をしてください。毎回1〜2文にして、必要なら私の文を直してください。",
       correctPrompt: "この文を添削してください：",
       explainPrompt: "この単語を説明し、中国語訳付きの例文を2つください：",
@@ -132,6 +168,8 @@
     messages: loadHistory(),
     busy: false,
     checked: false,
+    attachment: null,
+    processingImage: false,
     drag: {
       pointerId: null,
       startX: 0,
@@ -195,7 +233,11 @@
   function saveHistory() {
     state.messages = state.messages.slice(-MAX_STORED_MESSAGES);
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.messages));
+      const storedMessages = state.messages.map((message) => ({
+        role: message.role,
+        content: message.content
+      }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(storedMessages));
       window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       // 对话仍可继续，只是不再持久保存。
@@ -339,6 +381,9 @@
     $("#agent-close").setAttribute("aria-label", text("close"));
     $("#agent-clear").setAttribute("aria-label", text("clear"));
     $("#agent-input").placeholder = text("placeholder");
+    $("#agent-attach").setAttribute("title", text("attach"));
+    $("#agent-attach span").textContent = text("attach");
+    $("#agent-attachment-remove").setAttribute("aria-label", text("removeImage"));
     $("#agent-send").setAttribute("aria-label", text("send"));
     $("#agent-send-label").textContent = text("send");
     $("#agent-history-note").textContent = text("localHistory");
@@ -355,7 +400,7 @@
     element.textContent = text(labels[status] || "offline");
   }
 
-  function messageElement(role, content, temporary) {
+  function messageElement(role, content, temporary, imagePreview) {
     const item = document.createElement("article");
     item.className = `agent-message agent-message-${role}${temporary ? " is-typing" : ""}`;
     if (temporary) item.dataset.agentTyping = "true";
@@ -367,6 +412,15 @@
     const body = document.createElement("p");
     body.textContent = role === "assistant" ? cleanAssistantText(content) : content;
 
+    let image = null;
+    if (role === "user" && imagePreview) {
+      image = document.createElement("img");
+      image.className = "agent-message-image";
+      image.src = imagePreview;
+      image.alt = text("attach");
+      image.loading = "lazy";
+    }
+
     if (temporary) {
       const dots = document.createElement("span");
       dots.className = "agent-typing-dots";
@@ -374,7 +428,9 @@
       dots.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
       body.append(dots);
     }
-    item.append(label, body);
+    item.append(label);
+    if (image) item.append(image);
+    item.append(body);
     return item;
   }
 
@@ -382,7 +438,7 @@
     const list = $("#agent-messages");
     list.replaceChildren();
     if (!state.messages.length) list.append(messageElement("assistant", text("welcome"), false));
-    state.messages.forEach((message) => list.append(messageElement(message.role, message.content, false)));
+    state.messages.forEach((message) => list.append(messageElement(message.role, message.content, false, message.imagePreview)));
     scrollToLatest();
   }
 
@@ -437,10 +493,163 @@
     state.busy = busy;
     $("#agent-send").disabled = busy;
     $("#agent-input").disabled = busy;
+    $("#agent-image-input").disabled = busy;
+    $("#agent-attachment-remove").disabled = busy;
+    $("#agent-form").classList.toggle("is-busy", busy);
     document.querySelectorAll(".agent-quick-action").forEach((button) => { button.disabled = busy; });
   }
 
-  async function requestReply(message, history) {
+  function formatBytes(bytes) {
+    const kilobytes = Math.max(1, Math.round(Number(bytes || 0) / 1024));
+    return `${new Intl.NumberFormat(locale()).format(kilobytes)} KB`;
+  }
+
+  function showAttachmentState(name, meta, kind, preview) {
+    const container = $("#agent-attachment");
+    const image = $("#agent-attachment-preview");
+    container.hidden = false;
+    $("#agent-attachment-name").textContent = String(name || text("attach")).slice(0, 100);
+    $("#agent-attachment-meta").textContent = meta;
+    $("#agent-attachment-meta").dataset.kind = kind || "ready";
+    image.hidden = !preview;
+    if (preview) image.src = preview;
+    else image.removeAttribute("src");
+  }
+
+  function clearAttachment() {
+    state.attachment = null;
+    $("#agent-image-input").value = "";
+    $("#agent-attachment").hidden = true;
+    $("#agent-attachment-preview").removeAttribute("src");
+    $("#agent-attachment-preview").hidden = true;
+    delete $("#agent-attachment-meta").dataset.kind;
+    placePanel();
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("IMAGE_INVALID"));
+      };
+      image.src = objectUrl;
+    });
+  }
+
+  function canvasToBlob(canvas, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("IMAGE_PROCESSING_FAILED"));
+      }, "image/jpeg", quality);
+    });
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("IMAGE_PROCESSING_FAILED"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function prepareImage(file) {
+    const type = String(file?.type || "").toLowerCase();
+    if (!file || !SUPPORTED_IMAGE_TYPES.has(type)) {
+      const error = new Error("IMAGE_INVALID");
+      error.userMessage = text("imageInvalid");
+      throw error;
+    }
+    if (file.size > MAX_IMAGE_FILE_BYTES) {
+      const error = new Error("IMAGE_TOO_LARGE");
+      error.userMessage = text("imageTooLarge");
+      throw error;
+    }
+
+    const source = await loadImage(file);
+    const sourceWidth = source.naturalWidth || source.width;
+    const sourceHeight = source.naturalHeight || source.height;
+    if (!sourceWidth || !sourceHeight) throw new Error("IMAGE_INVALID");
+
+    const attempts = [
+      [MAX_IMAGE_DIMENSION, 0.9],
+      [1800, 0.86],
+      [1600, 0.82],
+      [1280, 0.78],
+      [1024, 0.74]
+    ];
+    let bestBlob = null;
+    for (const [dimension, quality] of attempts) {
+      const scale = Math.min(1, dimension / Math.max(sourceWidth, sourceHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("IMAGE_PROCESSING_FAILED");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(source, 0, 0, canvas.width, canvas.height);
+      bestBlob = await canvasToBlob(canvas, quality);
+      if (bestBlob.size <= MAX_IMAGE_BYTES) break;
+    }
+    if (!bestBlob || bestBlob.size > MAX_IMAGE_BYTES) {
+      const error = new Error("IMAGE_TOO_LARGE");
+      error.userMessage = text("imageTooLarge");
+      throw error;
+    }
+
+    const preview = await blobToDataUrl(bestBlob);
+    const data = preview.split(",", 2)[1] || "";
+    if (!data) throw new Error("IMAGE_PROCESSING_FAILED");
+    return {
+      name: String(file.name || "image.jpg").slice(0, 100),
+      mimeType: "image/jpeg",
+      data,
+      bytes: bestBlob.size,
+      preview
+    };
+  }
+
+  async function handleImageFile(file) {
+    if (!file || state.busy || state.processingImage) return;
+    state.processingImage = true;
+    $("#agent-attach").classList.add("is-busy");
+    showAttachmentState(file.name, text("imageOptimizing"), "working", "");
+    placePanel();
+    try {
+      state.attachment = await prepareImage(file);
+      showAttachmentState(
+        state.attachment.name,
+        text("imageReady").replace("{size}", formatBytes(state.attachment.bytes)),
+        "ready",
+        state.attachment.preview
+      );
+    } catch (error) {
+      state.attachment = null;
+      showAttachmentState(
+        file.name,
+        error?.userMessage || (error?.message === "IMAGE_INVALID" ? text("imageInvalid") : text("imageFailed")),
+        "error",
+        ""
+      );
+    } finally {
+      state.processingImage = false;
+      $("#agent-attach").classList.remove("is-busy");
+      $("#agent-image-input").value = "";
+      placePanel();
+    }
+  }
+
+  async function requestReply(message, history, attachment) {
     if (!apiBase()) throw new Error("NO_BACKEND");
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -448,7 +657,11 @@
       const response = await fetch(`${apiBase()}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history: history.slice(-MAX_SENT_HISTORY) }),
+        body: JSON.stringify({
+          message,
+          history: history.slice(-MAX_SENT_HISTORY).map((item) => ({ role: item.role, content: item.content })),
+          image: attachment ? { mimeType: attachment.mimeType, data: attachment.data } : null
+        }),
         signal: controller.signal
       });
       const payload = await response.json().catch(() => ({}));
@@ -472,14 +685,17 @@
   }
 
   async function sendMessage(rawMessage) {
-    const message = String(rawMessage || "").trim().slice(0, 2000);
-    if (!message || state.busy) return;
+    const attachment = state.attachment;
+    const typedMessage = String(rawMessage || "").trim().slice(0, 2000);
+    const message = typedMessage || (attachment ? text("imagePrompt") : "");
+    if (!message || state.busy || state.processingImage) return;
 
     const previous = state.messages.slice(-MAX_SENT_HISTORY);
-    state.messages.push({ role: "user", content: message });
+    state.messages.push({ role: "user", content: message, imagePreview: attachment?.preview || "" });
     saveHistory();
     renderHistory();
     $("#agent-input").value = "";
+    clearAttachment();
     resizeInput();
     setBusy(true);
 
@@ -488,7 +704,7 @@
     scrollToLatest();
 
     try {
-      const reply = cleanAssistantText(await requestReply(message, previous));
+      const reply = cleanAssistantText(await requestReply(message, previous, attachment));
       list.querySelector("[data-agent-typing]")?.remove();
       state.messages.push({ role: "assistant", content: reply });
       saveHistory();
@@ -541,15 +757,42 @@
       delete button.dataset.confirm;
       button.setAttribute("aria-label", text("clear"));
       state.messages = [];
+      clearAttachment();
       saveHistory();
       renderHistory();
     });
-    $("#agent-form").addEventListener("submit", (event) => {
+    const form = $("#agent-form");
+    const input = $("#agent-input");
+    const imageInput = $("#agent-image-input");
+    form.addEventListener("submit", (event) => {
       event.preventDefault();
-      sendMessage($("#agent-input").value);
+      sendMessage(input.value);
     });
-    $("#agent-input").addEventListener("input", resizeInput);
-    $("#agent-input").addEventListener("keydown", (event) => {
+    imageInput.addEventListener("change", () => handleImageFile(imageInput.files?.[0]));
+    $("#agent-attachment-remove").addEventListener("click", clearAttachment);
+    input.addEventListener("paste", (event) => {
+      const imageItem = Array.from(event.clipboardData?.items || []).find((item) => item.type.startsWith("image/"));
+      const file = imageItem?.getAsFile();
+      if (!file) return;
+      event.preventDefault();
+      handleImageFile(file);
+    });
+    form.addEventListener("dragover", (event) => {
+      if (!Array.from(event.dataTransfer?.types || []).includes("Files")) return;
+      event.preventDefault();
+      form.classList.add("is-dragover");
+    });
+    form.addEventListener("dragleave", (event) => {
+      if (!form.contains(event.relatedTarget)) form.classList.remove("is-dragover");
+    });
+    form.addEventListener("drop", (event) => {
+      event.preventDefault();
+      form.classList.remove("is-dragover");
+      const file = Array.from(event.dataTransfer?.files || []).find((item) => item.type.startsWith("image/"));
+      if (file) handleImageFile(file);
+    });
+    input.addEventListener("input", resizeInput);
+    input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         $("#agent-form").requestSubmit();
