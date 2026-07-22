@@ -3,17 +3,19 @@
 
   const baseLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
   const importedLessons = window.LessonImporter?.getLessons?.() || [];
-  const lessons = [...baseLessons, ...importedLessons].sort((left, right) => left.number - right.number);
-  const views = ["home", "lessons", "search", "flashcards"];
+  const lessonSources = [...baseLessons, ...importedLessons].sort((left, right) => left.number - right.number);
+  const lessons = window.LessonEditor?.apply?.(lessonSources) || lessonSources;
+  const views = ["home", "lessons", "search", "favorites", "flashcards", "spelling"];
   const allWords = lessons.flatMap((lesson) => {
     return lesson.words.map((word, index) => ({
       ...word,
-      id: `${lesson.id}:${index}`,
+      id: `${lesson.id}:${word._id || index}`,
       lessonId: lesson.id,
       lessonTitle: lesson.title,
       lessonNumber: lesson.number
     }));
   });
+  const wordById = new Map(allWords.map((word) => [word.id, word]));
   const vocabularyByEnglish = new Map();
   allWords.forEach((word) => {
     const normalized = word.english.trim().toLocaleLowerCase("en");
@@ -31,6 +33,10 @@
   let onlineSearchTimer = null;
   let onlineSearchController = null;
   let onlineSearchSequence = 0;
+  let wordImageController = null;
+  let wordImageSequence = 0;
+  let wordImagePrefetchTimer = null;
+  let activeLessonMenuTrigger = null;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -38,6 +44,10 @@
 
   function $$(selector, root) {
     return [...(root || document).querySelectorAll(selector)];
+  }
+
+  function t(key, variables) {
+    return window.SiteI18n?.t?.(key, variables) || key;
   }
 
   function escapeHTML(value) {
@@ -86,6 +96,34 @@
     return appState.favorites.includes(wordId);
   }
 
+  function favoriteStarMarkup(word) {
+    const favorite = isFavorite(word.id);
+    const action = favorite ? t("favorites.remove") : t("favorites.add");
+    return `
+      <button class="favorite-star" type="button" data-word-favorite="${escapeHTML(word.id)}" data-lesson-id="${escapeHTML(word.lessonId)}" aria-pressed="${favorite}" aria-label="${action} ${escapeHTML(word.english)}" title="${action}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m12 3.5 2.63 5.33 5.88.85-4.25 4.14 1 5.85L12 16.9l-5.26 2.77 1-5.85L3.5 9.68l5.87-.85L12 3.5Z"></path>
+        </svg>
+      </button>
+    `;
+  }
+
+  function wordCardMarkup(word, showLesson, editContext) {
+    return `
+      <article class="word-card">
+        <button class="word-card-main" type="button" data-speak="${escapeHTML(word.english)}" data-lesson-id="${escapeHTML(word.lessonId)}" aria-label="朗读 ${escapeHTML(word.english)}">
+          <span class="word" lang="en">${escapeHTML(word.english)}</span>
+          <span class="ipa">${escapeHTML(word.ipa)}</span>
+          <span class="translation">${escapeHTML(word.chinese)}</span>
+          ${showLesson ? `<span class="word-card-lesson">${escapeHTML(word.lessonTitle)}</span>` : ""}
+          <span class="speak-hint">点击朗读</span>
+        </button>
+        ${favoriteStarMarkup(word)}
+        ${editContext ? `<button class="remove-content-button word-remove" type="button" data-remove-word="${escapeHTML(editContext.wordId)}" data-lesson-id="${escapeHTML(editContext.lessonId)}">${t("edit.delete")}</button>` : ""}
+      </article>
+    `;
+  }
+
   function getStudyExampleCount(lesson) {
     return (lesson.studyNotes || []).reduce((total, note) => {
       return total + (Array.isArray(note.examples) ? note.examples.length : 0);
@@ -99,10 +137,10 @@
   function renderStats() {
     const validWordIds = new Set(allWords.map((word) => word.id));
     const stats = [
-      { value: lessons.length, label: "课程总数" },
-      { value: allWords.length, label: "单词与短语" },
-      { value: appState.mastered.filter((id) => validWordIds.has(id)).length, label: "已掌握" },
-      { value: appState.favorites.filter((id) => validWordIds.has(id)).length, label: "收藏数量" }
+      { value: lessons.length, label: t("stats.courses") },
+      { value: allWords.length, label: t("stats.words") },
+      { value: appState.mastered.filter((id) => validWordIds.has(id)).length, label: t("stats.mastered") },
+      { value: appState.favorites.filter((id) => validWordIds.has(id)).length, label: t("stats.favorites") }
     ];
 
     $("#stats-grid").innerHTML = stats.map((item) => `
@@ -121,8 +159,8 @@
       container.innerHTML = `
         <div class="empty-state">
           <div>
-            <strong>还没有学习记录</strong>
-            <p>展开一课或点击英文后，这里会显示最近学习内容。</p>
+            <strong>${t("recent.emptyTitle")}</strong>
+            <p>${t("recent.emptyText")}</p>
           </div>
         </div>
       `;
@@ -134,29 +172,28 @@
         <div>
           <span class="lesson-number">LESSON ${lesson.number}</span>
           <h3>${escapeHTML(lesson.title)}</h3>
-          <p>${lesson.words.length} 个词条 · ${getLessonSentenceCount(lesson)} 条学习句子</p>
+          <p>${t("lessons.wordCount", { words: lesson.words.length, sentences: getLessonSentenceCount(lesson) })}</p>
         </div>
-        <button class="button button-secondary" type="button" data-open-lesson="${lesson.id}">继续</button>
+        <button class="button button-secondary" type="button" data-open-lesson="${lesson.id}">${t("recent.continue")}</button>
       </article>
     `).join("");
   }
 
   function lessonMarkup(lesson) {
-    const words = lesson.words.map((word) => `
-      <button class="word-card" type="button" data-speak="${escapeHTML(word.english)}" data-lesson-id="${lesson.id}">
-        <span class="word">${escapeHTML(word.english)}</span>
-        <span class="ipa">${escapeHTML(word.ipa)}</span>
-        <span class="translation">${escapeHTML(word.chinese)}</span>
-        <span class="speak-hint">点击朗读</span>
-      </button>
-    `).join("");
+    const words = lesson.words.map((word, index) => wordCardMarkup({
+      ...word,
+      id: `${lesson.id}:${word._id || index}`,
+      lessonId: lesson.id,
+      lessonTitle: lesson.title
+    }, false, { lessonId: lesson.id, wordId: word._id || String(index) })).join("");
 
-    const sentenceButton = (sentence, extraClass) => `
+    const sentenceButton = (sentence, extraClass, type, noteId) => `
       <article class="sentence-card ${extraClass || ""}" data-lesson-id="${lesson.id}">
         <p class="sentence-english" lang="en">${sentenceWordMarkup(sentence.english, lesson.id)}</p>
         ${sentence.ipa ? `<p class="sentence-ipa">${escapeHTML(sentence.ipa)}</p>` : ""}
         <p class="translation">${escapeHTML(sentence.chinese)}</p>
         <button class="sentence-speak" type="button" data-speak="${escapeHTML(sentence.english)}" data-lesson-id="${lesson.id}">朗读整句</button>
+        <button class="remove-content-button sentence-remove" type="button" data-remove-${type}="${escapeHTML(sentence._id)}" data-lesson-id="${escapeHTML(lesson.id)}" ${noteId ? `data-note-id="${escapeHTML(noteId)}"` : ""}>${t("edit.delete")}</button>
       </article>
     `;
 
@@ -164,36 +201,46 @@
       const structures = (note.structures || []).length
         ? `<ul class="structure-list translation">${note.structures.map((item) => `<li>${escapeHTML(item)}</li>`).join("")}</ul>`
         : "";
-      const examples = (note.examples || []).map((example) => sentenceButton(example, "note-example")).join("");
+      const examples = (note.examples || []).map((example) => sentenceButton(example, "note-example", "example", note._id)).join("");
 
       return `
-        <section class="study-note">
+        <section class="study-note" data-note-id="${escapeHTML(note._id)}">
           <div class="study-note-heading">
-            <span class="note-index">GRAMMAR</span>
-            <h4>${escapeHTML(note.title)}</h4>
-            <p class="translation">${escapeHTML(note.description)}</p>
+            <div>
+              <span class="note-index">GRAMMAR</span>
+              <h4>${escapeHTML(note.title)}</h4>
+              <p class="translation">${escapeHTML(note.description)}</p>
+            </div>
+            <div class="note-actions">
+              <button class="mini-action" type="button" data-add-example="${escapeHTML(note._id)}" data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addExample")}</button>
+              <button class="mini-action mini-action-danger" type="button" data-remove-note="${escapeHTML(note._id)}" data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.delete")}</button>
+            </div>
           </div>
           ${structures}
-          <div class="sentence-list note-examples">${examples}</div>
+          <div class="sentence-list note-examples">${examples || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
         </section>
       `;
     }).join("");
 
-    const sentences = lesson.sentences.map((sentence) => sentenceButton(sentence, "")).join("");
-    const notesSection = studyNotes ? `
+    const sentences = lesson.sentences.map((sentence) => sentenceButton(sentence, "", "sentence", "")).join("");
+    const notesSection = `
       <div class="content-heading">
-        <h3>语法与例句</h3>
-        <span>点击单词查音标，或朗读整句</span>
+        <div>
+          <h3>${t("lessons.grammar")}</h3>
+          <span>${t("lessons.clickWord")}</span>
+        </div>
+        <button class="mini-action" type="button" data-add-note data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addGrammar")}</button>
       </div>
-      <div class="study-notes">${studyNotes}</div>
-    ` : "";
+      <div class="study-notes">${studyNotes || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
+    `;
     const importedMeta = lesson.imported ? `
       <div class="imported-lesson-meta">
         <div>
-          <span class="local-badge">本地导入</span>
-          <p>来源：${escapeHTML(lesson.sourceName || "本地文件")} · 原文件未保存</p>
+          <span class="local-badge">${t(lesson.manual ? "lessons.localCourse" : "lessons.localImport")}</span>
+          <p>${lesson.manual
+            ? t("lessons.manualCourseHint")
+            : t("lessons.source", { source: escapeHTML(lesson.sourceName || "本地文件") })}</p>
         </div>
-        <button class="button button-quiet imported-delete" type="button" data-delete-imported-lesson="${escapeHTML(lesson.id)}">删除这节导入课程</button>
       </div>
     ` : "";
 
@@ -204,24 +251,44 @@
             <span class="lesson-index">${lesson.number}</span>
             <span>
               <h2>${escapeHTML(lesson.title)}</h2>
-              <p>${lesson.words.length} 个词条 · ${getLessonSentenceCount(lesson)} 条学习句子</p>
+              <p>${t("lessons.wordCount", { words: lesson.words.length, sentences: getLessonSentenceCount(lesson) })}</p>
             </span>
           </span>
-          <span class="summary-action"><span>展开学习</span></span>
+          <span class="lesson-summary-controls">
+            <span class="summary-action"><span>${t("lessons.open")}</span></span>
+            <span class="lesson-row-actions" data-lesson-actions="${escapeHTML(lesson.id)}">
+              <button class="lesson-icon-button lesson-menu-trigger" type="button" data-lesson-menu="${escapeHTML(lesson.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${t("edit.menu")}" title="${t("edit.menu")}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg>
+              </button>
+              <button class="lesson-icon-button lesson-add-button" type="button" data-add-lesson="${escapeHTML(lesson.id)}" aria-label="${t("edit.addLesson")}" title="${t("edit.addLesson")}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+              </button>
+              <span class="lesson-overflow-menu" role="menu" data-lesson-menu-panel="${escapeHTML(lesson.id)}" hidden>
+                <button type="button" role="menuitem" data-edit-lesson="${escapeHTML(lesson.id)}">${t("edit.rename")}</button>
+                <button class="lesson-menu-danger" type="button" role="menuitem" data-delete-lesson="${escapeHTML(lesson.id)}">${t("edit.deleteLesson")}</button>
+              </span>
+            </span>
+          </span>
         </summary>
         <div class="lesson-content">
           ${importedMeta}
           <div class="content-heading">
-            <h3>${escapeHTML(lesson.wordSectionTitle)}</h3>
-            <span>点击卡片朗读</span>
+            <div>
+              <h3>${escapeHTML(lesson.wordSectionTitle || t("lessons.words"))}</h3>
+              <span>${t("lessons.clickRead")}</span>
+            </div>
+            <button class="mini-action" type="button" data-add-word data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addWord")}</button>
           </div>
-          <div class="word-grid">${words}</div>
+          <div class="word-grid">${words || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
           ${notesSection}
           <div class="content-heading">
-            <h3>${escapeHTML(lesson.readingTitle)}</h3>
-            <span>点击单词查音标，或朗读整句</span>
+            <div>
+              <h3>${escapeHTML(lesson.readingTitle || t("lessons.reading"))}</h3>
+              <span>${t("lessons.clickWord")}</span>
+            </div>
+            <button class="mini-action" type="button" data-add-sentence data-lesson-id="${escapeHTML(lesson.id)}">${t("edit.addSentence")}</button>
           </div>
-          <div class="sentence-list">${sentences}</div>
+          <div class="sentence-list">${sentences || `<p class="content-empty">${t("lessons.empty")}</p>`}</div>
         </div>
       </details>
     `;
@@ -233,6 +300,8 @@
 
     $$('[data-lesson-panel]', lessonList).forEach((panel) => {
       panel.addEventListener("toggle", () => {
+        const actionLabel = $(".summary-action span", panel);
+        if (actionLabel) actionLabel.textContent = t(panel.open ? "lessons.close" : "lessons.open");
         if (!panel.open) return;
         appState = window.LearningStorage.recordLesson(panel.dataset.lessonPanel);
         renderRecentLessons();
@@ -240,6 +309,55 @@
     });
 
     applyTranslationSetting();
+  }
+
+  function renderFavorites() {
+    const favoriteWords = allWords.filter((word) => isFavorite(word.id));
+    const summary = $("#favorites-summary");
+    const list = $("#favorites-list");
+    summary.textContent = favoriteWords.length
+      ? t("favorites.count", { count: favoriteWords.length })
+      : t("favorites.none");
+
+    if (!favoriteWords.length) {
+      list.innerHTML = `
+        <div class="empty-state favorites-empty">
+          <div>
+            <strong>${t("favorites.emptyTitle")}</strong>
+            <p>${t("favorites.emptyText")}</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = favoriteWords.map((word) => wordCardMarkup(word, true)).join("");
+  }
+
+  function syncFavoriteStars() {
+    $$('[data-word-favorite]').forEach((button) => {
+      const word = wordById.get(button.dataset.wordFavorite);
+      if (!word) return;
+      const favorite = isFavorite(word.id);
+      const action = favorite ? t("favorites.remove") : t("favorites.add");
+      button.setAttribute("aria-pressed", String(favorite));
+      button.setAttribute("aria-label", `${action} ${word.english}`);
+      button.title = action;
+    });
+  }
+
+  function toggleWordFavorite(wordId, lessonId) {
+    if (!wordById.has(wordId)) return;
+    appState = window.LearningStorage.toggleFavorite(wordId);
+    renderStats();
+    renderFavorites();
+    renderSearch($("#search-input").value);
+    syncFavoriteStars();
+
+    if ($("#deck-filter").value === "favorites") resetDeck(false);
+    else updateCardStatus();
+
+    recordLessonActivity(lessonId || wordById.get(wordId).lessonId);
   }
 
   function applyTranslationSetting() {
@@ -436,17 +554,128 @@
     masteredButton.setAttribute("aria-pressed", String(mastered));
     reviewButton.setAttribute("aria-pressed", String(review));
     favoriteButton.setAttribute("aria-pressed", String(favorite));
-    favoriteButton.textContent = favorite ? "已收藏" : "收藏";
+    favoriteButton.textContent = favorite ? t("favorites.saved") : t("favorites.add");
+  }
+
+  function resetCardImage(message, options = {}) {
+    const image = $("#card-image");
+    const placeholder = $("#card-image-placeholder");
+    const credit = $("#card-image-credit");
+    const changeButton = $("#change-card-image");
+    const status = $("#card-image-status");
+    image.onload = null;
+    image.onerror = null;
+    image.removeAttribute("src");
+    image.alt = "";
+    image.hidden = true;
+    placeholder.textContent = message;
+    placeholder.hidden = false;
+    credit.hidden = true;
+    credit.removeAttribute("href");
+    credit.textContent = "";
+    changeButton.hidden = !options.allowChange;
+    changeButton.disabled = Boolean(options.disabled);
+    status.textContent = options.status || "";
+  }
+
+  function scheduleCardImagePrefetch(word) {
+    window.clearTimeout(wordImagePrefetchTimer);
+    if (!word || !window.WordImages?.preload || deck.length < 2) return;
+
+    wordImagePrefetchTimer = window.setTimeout(() => {
+      const queued = [];
+      const limit = Math.min(2, deck.length - 1);
+      for (let offset = 1; offset <= limit; offset += 1) {
+        const nextWord = deck[(deckIndex + offset) % deck.length];
+        if (nextWord && nextWord.id !== word.id) queued.push(nextWord);
+      }
+      queued.forEach((item) => window.WordImages.preload(item));
+    }, 250);
+  }
+
+  async function renderCardImage(word, options = {}) {
+    wordImageSequence += 1;
+    const sequence = wordImageSequence;
+    if (wordImageController) wordImageController.abort();
+    wordImageController = null;
+
+    if (!word) {
+      resetCardImage(t("images.none"));
+      return;
+    }
+
+    if (!window.WordImages?.find) {
+      resetCardImage(t("images.unavailable"));
+      return;
+    }
+
+    const shouldAdvance = Boolean(options.advance && window.WordImages.next);
+    resetCardImage(t(shouldAdvance ? "images.changing" : "images.searching"), { disabled: true });
+    wordImageController = new AbortController();
+
+    try {
+      const action = shouldAdvance ? window.WordImages.next : window.WordImages.find;
+      const result = await action(word, { signal: wordImageController.signal });
+      if (sequence !== wordImageSequence) return;
+      if (!result) {
+        resetCardImage(t("images.none"));
+        scheduleCardImagePrefetch(word);
+        return;
+      }
+
+      const image = $("#card-image");
+      const placeholder = $("#card-image-placeholder");
+      const credit = $("#card-image-credit");
+      const changeButton = $("#change-card-image");
+      const status = $("#card-image-status");
+      const hasAlternatives = result.candidateCount > 1;
+      image.alt = `${word.english}：${result.title}`;
+      image.onload = () => {
+        if (sequence !== wordImageSequence) return;
+        image.hidden = false;
+        placeholder.hidden = true;
+        if (result.landingUrl) credit.hidden = false;
+        changeButton.hidden = !hasAlternatives;
+        changeButton.disabled = false;
+        status.textContent = shouldAdvance ? t("images.changed") : "";
+      };
+      image.onerror = () => {
+        if (sequence !== wordImageSequence) return;
+        resetCardImage(t("images.failed"), { allowChange: hasAlternatives });
+      };
+      credit.href = result.landingUrl || "#";
+      credit.textContent = `${result.creator} · ${result.license}`;
+      credit.title = `${result.source} · ${result.title}`;
+      image.src = result.thumbnail;
+      scheduleCardImagePrefetch(word);
+    } catch (error) {
+      if (error?.name === "AbortError" || sequence !== wordImageSequence) return;
+      resetCardImage(t("images.offline"));
+    }
   }
 
   function renderFlashcard() {
     const word = getCurrentWord();
+    const cardControls = [
+      $("#flashcard"),
+      $("#previous-card"),
+      $("#next-card"),
+      $("#speak-card"),
+      ...$$('[data-card-status]'),
+      $("[data-card-favorite]")
+    ];
+    cardControls.forEach((button) => { button.disabled = !word; });
+
     if (!word) {
-      $("#deck-progress").textContent = "暂无卡片";
+      $("#deck-progress").textContent = t("cards.none");
       $("#card-context").textContent = "";
-      $("#card-english").textContent = "暂无内容";
+      $("#card-english").textContent = t("cards.noContent");
       $("#card-ipa").textContent = "";
       $("#card-chinese").textContent = "—";
+      $$('[data-card-status]').forEach((button) => button.setAttribute("aria-pressed", "false"));
+      $("[data-card-favorite]").setAttribute("aria-pressed", "false");
+      $("[data-card-favorite]").textContent = t("favorites.add");
+      renderCardImage(null);
       return;
     }
 
@@ -457,11 +686,14 @@
     $("#card-chinese").textContent = word.chinese;
     setCardFlipped(false);
     updateCardStatus();
+    if (!$("[data-view='flashcards']").hidden) renderCardImage(word);
   }
 
   function resetDeck(shouldShuffle) {
     const filter = $("#deck-filter").value;
-    deck = filter === "all" ? [...allWords] : allWords.filter((word) => word.lessonId === filter);
+    if (filter === "all") deck = [...allWords];
+    else if (filter === "favorites") deck = allWords.filter((word) => isFavorite(word.id));
+    else deck = allWords.filter((word) => word.lessonId === filter);
 
     if (shouldShuffle) {
       for (let index = deck.length - 1; index > 0; index -= 1) {
@@ -475,9 +707,14 @@
   }
 
   function renderDynamicControls() {
-    $("#search-label").textContent = `搜索 ${allWords.length} 个课程词条，或查询任意英文单词`;
+    $("#search-label").textContent = t("search.label");
     $("#deck-filter").innerHTML = [
-      '<option value="all">全部课程</option>',
+      `<option value="all">${t("common.allLessons")}</option>`,
+      `<option value="favorites">${t("common.myFavorites")}</option>`,
+      ...lessons.map((lesson) => `<option value="${lesson.id}">${escapeHTML(lesson.title)}</option>`)
+    ].join("");
+    $("#course-export-select").innerHTML = [
+      `<option value="all">${t("export.all")}</option>`,
       ...lessons.map((lesson) => `<option value="${lesson.id}">${escapeHTML(lesson.title)}</option>`)
     ].join("");
   }
@@ -492,9 +729,9 @@
     const nextTheme = theme === "dark" ? "dark" : "light";
     const isDark = nextTheme === "dark";
     document.documentElement.dataset.theme = nextTheme;
-    $("#theme-label").textContent = isDark ? "夜间" : "白天";
-    $("#theme-toggle").setAttribute("aria-label", isDark ? "切换到白天模式" : "切换到夜间模式");
-    $("#theme-toggle").title = isDark ? "切换到白天模式" : "切换到夜间模式";
+    $("#theme-label").textContent = t(isDark ? "theme.night" : "theme.day");
+    $("#theme-toggle").setAttribute("aria-label", t(isDark ? "theme.toDay" : "theme.toNight"));
+    $("#theme-toggle").title = t(isDark ? "theme.toDay" : "theme.toNight");
   }
 
   function showView(viewName) {
@@ -506,6 +743,11 @@
       if (link.dataset.nav === activeView) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
+    if (activeView === "flashcards") renderCardImage(getCurrentWord());
+    else {
+      if (wordImageController) wordImageController.abort();
+      window.clearTimeout(wordImagePrefetchTimer);
+    }
     window.scrollTo({ top: 0, behavior: "instant" });
   }
 
@@ -551,6 +793,209 @@
     });
   }
 
+  function setupLanguage() {
+    const select = $("#language-select");
+    if (!select || !window.SiteI18n) return;
+    select.value = window.SiteI18n.current();
+    select.addEventListener("change", () => {
+      window.SiteI18n.setLanguage(select.value);
+      window.location.reload();
+    });
+  }
+
+  function keepLessonOpen(lessonId) {
+    try {
+      window.sessionStorage.setItem("hexin-open-imported-lesson", lessonId);
+    } catch (_error) {
+      // 会话存储不可用时，编辑仍然已经写入 localStorage。
+    }
+    window.location.hash = "lessons";
+    window.location.reload();
+  }
+
+  function editorField(name) {
+    return $(`[data-editor-field="${name}"]`);
+  }
+
+  function openLessonEditor(action, lessonId, noteId) {
+    const dialog = $("#lesson-editor-dialog");
+    const form = $("#lesson-editor-form");
+    const lesson = getLesson(lessonId);
+    if (!dialog || !form || !lesson) return;
+
+    const definitions = {
+      rename: { title: "edit.dialog.rename", fields: ["title"] },
+      word: { title: "edit.dialog.word", fields: ["english", "ipa", "chinese"] },
+      note: { title: "edit.dialog.note", fields: ["title", "description", "structures"] },
+      example: { title: "edit.dialog.example", fields: ["english", "chinese"] },
+      sentence: { title: "edit.dialog.sentence", fields: ["english", "chinese"] }
+    };
+    const definition = definitions[action];
+    if (!definition) return;
+
+    form.reset();
+    $("#lesson-editor-action").value = action;
+    $("#lesson-editor-lesson-id").value = lessonId;
+    $("#lesson-editor-note-id").value = noteId || "";
+    $("#lesson-editor-title").textContent = t(definition.title);
+    $("#lesson-editor-error").hidden = true;
+    ["title", "english", "ipa", "chinese", "description", "structures"].forEach((name) => {
+      const field = editorField(name);
+      const input = field?.querySelector("input, textarea");
+      if (!field || !input) return;
+      field.hidden = !definition.fields.includes(name);
+      input.required = definition.fields.includes(name) && (name === "title" || name === "english");
+    });
+    if (action === "rename") $("#lesson-editor-title-input").value = lesson.title;
+
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    const firstInput = form.querySelector(".editor-field:not([hidden]) input, .editor-field:not([hidden]) textarea");
+    window.requestAnimationFrame(() => firstInput?.focus());
+  }
+
+  function closeLessonEditor() {
+    const dialog = $("#lesson-editor-dialog");
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  }
+
+  function setupLessonEditor() {
+    const form = $("#lesson-editor-form");
+    $("#lesson-editor-cancel").addEventListener("click", closeLessonEditor);
+    $("#lesson-editor-dialog").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) closeLessonEditor();
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const action = $("#lesson-editor-action").value;
+      const lessonId = $("#lesson-editor-lesson-id").value;
+      const noteId = $("#lesson-editor-note-id").value;
+      const lesson = getLesson(lessonId);
+      const values = {
+        title: $("#lesson-editor-title-input").value,
+        english: $("#lesson-editor-english").value,
+        ipa: $("#lesson-editor-ipa").value,
+        chinese: $("#lesson-editor-chinese").value,
+        description: $("#lesson-editor-description").value,
+        structures: $("#lesson-editor-structures").value
+      };
+      try {
+        if (!lesson || !window.LessonEditor) throw new Error("课程编辑器没有正确载入。");
+        if (action === "rename") window.LessonEditor.rename(lesson, values.title);
+        if (action === "word") window.LessonEditor.addWord(lesson, values);
+        if (action === "note") window.LessonEditor.addNote(lesson, values);
+        if (action === "example") window.LessonEditor.addExample(lesson, noteId, values);
+        if (action === "sentence") window.LessonEditor.addSentence(lesson, values);
+        closeLessonEditor();
+        keepLessonOpen(lessonId);
+      } catch (error) {
+        const errorBox = $("#lesson-editor-error");
+        errorBox.textContent = error.message || "保存失败，请重试。";
+        errorBox.hidden = false;
+      }
+    });
+  }
+
+  function confirmDestructiveAction(button, action) {
+    if (button.dataset.confirmDelete === "true") {
+      action();
+      return;
+    }
+    const originalLabel = button.textContent;
+    button.dataset.confirmDelete = "true";
+    button.textContent = t("edit.confirm");
+    window.setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirmDelete = "false";
+      button.textContent = originalLabel;
+    }, 12000);
+  }
+
+  function setupCourseExport() {
+    const pdfButton = $("#export-pdf");
+    const wordButton = $("#export-word");
+    const status = $("#export-status");
+    const selectedLessons = () => {
+      const selected = $("#course-export-select").value;
+      return selected === "all" ? lessons : lessons.filter((lesson) => lesson.id === selected);
+    };
+    const exportTitle = (items) => items.length === 1 ? items[0].title : "何鑫的英语课程学习资料";
+    const setBusy = (busy) => {
+      pdfButton.disabled = busy;
+      wordButton.disabled = busy;
+    };
+
+    wordButton.addEventListener("click", () => {
+      const items = selectedLessons();
+      try {
+        window.CourseExporter.exportWord(items, appState, exportTitle(items));
+        status.textContent = t("export.done");
+      } catch (error) {
+        status.textContent = t("export.failed", { message: error.message });
+      }
+    });
+
+    pdfButton.addEventListener("click", async () => {
+      const items = selectedLessons();
+      setBusy(true);
+      status.textContent = t("export.working");
+      try {
+        await window.CourseExporter.exportPdf(items, appState, exportTitle(items));
+        status.textContent = t("export.done");
+      } catch (error) {
+        status.textContent = t("export.failed", { message: error.message });
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
+  function closeLessonMenu(restoreFocus = false) {
+    $$('[data-lesson-menu-panel]').forEach((menu) => { menu.hidden = true; });
+    $$('[data-lesson-actions]').forEach((actions) => actions.classList.remove("is-open"));
+    $$('[data-lesson-menu]').forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
+    if (restoreFocus && activeLessonMenuTrigger?.isConnected) activeLessonMenuTrigger.focus();
+    activeLessonMenuTrigger = null;
+  }
+
+  function toggleLessonMenu(trigger) {
+    const lessonId = trigger.dataset.lessonMenu;
+    const menu = $(`[data-lesson-menu-panel="${CSS.escape(lessonId)}"]`);
+    const actions = trigger.closest("[data-lesson-actions]");
+    if (!menu || !actions) return;
+    const willOpen = menu.hidden;
+    closeLessonMenu(false);
+    if (!willOpen) return;
+    menu.hidden = false;
+    actions.classList.add("is-open");
+    trigger.setAttribute("aria-expanded", "true");
+    activeLessonMenuTrigger = trigger;
+    window.requestAnimationFrame(() => $("[role='menuitem']", menu)?.focus());
+  }
+
+  function createBlankLesson() {
+    if (!window.LessonImporter?.saveLesson) return;
+    const number = Math.max(0, ...lessons.map((lesson) => Number(lesson.number) || 0)) + 1;
+    const lesson = {
+      id: `imported-manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      number,
+      title: t("edit.newLesson", { number }),
+      wordSectionTitle: t("lessons.words"),
+      readingTitle: t("lessons.reading"),
+      words: [],
+      sentences: [],
+      studyNotes: [],
+      imported: true,
+      manual: true,
+      sourceName: t("edit.manualSource"),
+      importedAt: Date.now()
+    };
+    const saved = window.LessonImporter.saveLesson(lesson);
+    keepLessonOpen(saved.id);
+  }
+
   function setupLessonControls() {
     $("#hide-chinese").addEventListener("change", (event) => {
       appState = window.LearningStorage.updateSettings({ hideChinese: event.target.checked });
@@ -566,21 +1011,76 @@
     });
 
     $("#lesson-list").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-delete-imported-lesson]");
+      const button = event.target.closest("button");
       if (!button) return;
-      const lesson = getLesson(button.dataset.deleteImportedLesson);
-      if (!lesson?.imported) return;
-      if (button.dataset.confirmDelete !== "true") {
-        button.dataset.confirmDelete = "true";
-        button.textContent = "再次点击确认删除";
-        window.setTimeout(() => {
-          if (!button.isConnected) return;
-          button.dataset.confirmDelete = "false";
-          button.textContent = "删除这节导入课程";
-        }, 15000);
+      if (button.closest("summary")) event.preventDefault();
+
+      if (button.matches("[data-lesson-menu]")) {
+        toggleLessonMenu(button);
         return;
       }
-      if (window.LessonImporter?.deleteLesson(lesson.id)) window.location.reload();
+
+      if (button.matches("[data-add-lesson]")) {
+        event.preventDefault();
+        closeLessonMenu(false);
+        try {
+          createBlankLesson();
+        } catch (error) {
+          window.alert(error.message || t("edit.addLessonFailed"));
+        }
+        return;
+      }
+
+      const lessonId = button.dataset.lessonId || button.dataset.editLesson || button.dataset.deleteLesson;
+      const lesson = getLesson(lessonId);
+
+      if (button.matches("[data-edit-lesson]")) {
+        closeLessonMenu(false);
+        openLessonEditor("rename", lessonId);
+      }
+      else if (button.matches("[data-add-word]")) openLessonEditor("word", lessonId);
+      else if (button.matches("[data-add-note]")) openLessonEditor("note", lessonId);
+      else if (button.matches("[data-add-example]")) openLessonEditor("example", lessonId, button.dataset.addExample);
+      else if (button.matches("[data-add-sentence]")) openLessonEditor("sentence", lessonId);
+      else if (button.matches("[data-remove-word]")) {
+        confirmDestructiveAction(button, () => {
+          window.LessonEditor.removeWord(lesson, button.dataset.removeWord);
+          keepLessonOpen(lessonId);
+        });
+      } else if (button.matches("[data-remove-note]")) {
+        confirmDestructiveAction(button, () => {
+          window.LessonEditor.removeNote(lesson, button.dataset.removeNote);
+          keepLessonOpen(lessonId);
+        });
+      } else if (button.matches("[data-remove-example]")) {
+        confirmDestructiveAction(button, () => {
+          window.LessonEditor.removeExample(lesson, button.dataset.noteId, button.dataset.removeExample);
+          keepLessonOpen(lessonId);
+        });
+      } else if (button.matches("[data-remove-sentence]")) {
+        confirmDestructiveAction(button, () => {
+          window.LessonEditor.removeSentence(lesson, button.dataset.removeSentence);
+          keepLessonOpen(lessonId);
+        });
+      } else if (button.matches("[data-delete-lesson]") && lesson) {
+        confirmDestructiveAction(button, () => {
+          if (lesson.imported) {
+            window.LessonEditor?.forget?.(lesson.id);
+            window.LessonImporter?.deleteLesson?.(lesson.id);
+          } else {
+            window.LessonEditor?.deleteLesson?.(lesson.id);
+          }
+          window.location.reload();
+        });
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-lesson-actions]")) closeLessonMenu(false);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && activeLessonMenuTrigger) closeLessonMenu(true);
     });
   }
 
@@ -623,10 +1123,20 @@
     $("#search-results").addEventListener("click", (event) => {
       const button = event.target.closest("[data-result-favorite]");
       if (!button) return;
-      appState = window.LearningStorage.toggleFavorite(button.dataset.resultFavorite);
-      renderStats();
-      renderSearch(searchInput.value);
-      updateCardStatus();
+      toggleWordFavorite(button.dataset.resultFavorite);
+    });
+  }
+
+  function setupFavorites() {
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-word-favorite]");
+      if (!button) return;
+      toggleWordFavorite(button.dataset.wordFavorite, button.dataset.lessonId);
+    });
+
+    $("[data-review-favorites]").addEventListener("click", () => {
+      $("#deck-filter").value = "favorites";
+      resetDeck(false);
     });
   }
 
@@ -634,6 +1144,10 @@
     $("#flashcard").addEventListener("click", () => setCardFlipped(!cardFlipped));
     $("#previous-card").addEventListener("click", () => changeCard(-1));
     $("#next-card").addEventListener("click", () => changeCard(1));
+    $("#change-card-image").addEventListener("click", () => {
+      const word = getCurrentWord();
+      if (word) renderCardImage(word, { advance: true });
+    });
     $("#deck-filter").addEventListener("change", () => resetDeck(false));
     $("#shuffle-deck").addEventListener("click", () => resetDeck(true));
 
@@ -659,11 +1173,7 @@
     $("[data-card-favorite]").addEventListener("click", () => {
       const word = getCurrentWord();
       if (!word) return;
-      appState = window.LearningStorage.toggleFavorite(word.id);
-      renderStats();
-      updateCardStatus();
-      renderSearch($("#search-input").value);
-      recordLessonActivity(word.lessonId);
+      toggleWordFavorite(word.id, word.lessonId);
     });
   }
 
@@ -767,21 +1277,30 @@
   }
 
   function init() {
+    setupLanguage();
     renderDynamicControls();
     renderStats();
     renderRecentLessons();
     renderLessons();
+    renderFavorites();
     renderSearch("");
     renderFlashcard();
     setupNavigation();
     setupTheme();
     setupLessonControls();
+    setupLessonEditor();
+    setupCourseExport();
     setupLessonImporter();
     setupSearch();
+    setupFavorites();
     setupFlashcards();
     setupSpeech();
     setupWordPopover();
     openNewlyImportedLesson();
+    window.SiteI18n?.apply?.(document);
+    window.setTimeout(() => {
+      if (deck[0] && window.WordImages?.preload) window.WordImages.preload(deck[0]);
+    }, 800);
   }
 
   if (document.readyState === "loading") {

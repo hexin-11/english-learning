@@ -13,6 +13,7 @@
       voiceURI: "",
       accent: "en-US",
       rate: 0.8,
+      weather: "clear",
       hideChinese: false,
       appearanceVersion: APPEARANCE_VERSION
     }
@@ -45,6 +46,7 @@
         voiceURI: typeof settings.voiceURI === "string" ? settings.voiceURI : "",
         accent: settings.accent === "en-GB" ? "en-GB" : "en-US",
         rate: Number.isFinite(rate) && rate >= 0.5 && rate <= 1.3 ? rate : 0.8,
+        weather: settings.weather === "rain" || settings.weather === "snow" ? settings.weather : "clear",
         hideChinese: Boolean(settings.hideChinese),
         appearanceVersion: currentAppearance ? APPEARANCE_VERSION : 0
       }

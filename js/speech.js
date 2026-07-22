@@ -15,6 +15,10 @@
     utterance: null
   };
 
+  function t(key, variables) {
+    return window.SiteI18n?.t?.(key, variables) || key;
+  }
+
   function setStatus(message) {
     if (speechState.status) speechState.status.textContent = message;
   }
@@ -66,8 +70,8 @@
   function updateVoiceLabel() {
     if (!speechState.voiceLabel) return;
     speechState.voiceLabel.textContent = speechState.voices.length
-      ? `英语声音 · ${speechState.voices.length} 个`
-      : "英语声音";
+      ? t("speech.voiceCount", { count: speechState.voices.length })
+      : t("speech.voice");
   }
 
   function renderVoiceOptions() {
@@ -83,7 +87,7 @@
     if (!speechState.voices.length) {
       const option = document.createElement("option");
       option.value = "";
-      option.textContent = `系统默认英语声音（${getAccent()}）`;
+      option.textContent = t("speech.defaultVoice", { accent: getAccent() });
       speechState.voiceSelect.append(option);
       updateVoiceLabel();
       return;
@@ -92,7 +96,7 @@
     speechState.voices.forEach((voice) => {
       const option = document.createElement("option");
       option.value = voice.voiceURI;
-      option.textContent = `${voice.name} (${voice.lang})${voice.default ? " · 默认" : ""}`;
+      option.textContent = `${voice.name} (${voice.lang})${voice.default ? ` · ${t("speech.defaultMark")}` : ""}`;
       option.selected = Boolean(selectedVoice && voice.voiceURI === selectedVoice.voiceURI);
       speechState.voiceSelect.append(option);
     });
@@ -151,10 +155,10 @@
 
   function accentName(lang) {
     const normalized = String(lang || "").toLowerCase();
-    if (normalized === "en-gb") return "英式";
-    if (normalized === "en-us") return "美式";
-    if (normalized === "en-au") return "澳式";
-    return "英语";
+    if (normalized === "en-gb") return t("speech.uk");
+    if (normalized === "en-us") return t("speech.us");
+    if (normalized === "en-au") return t("speech.accentAU");
+    return t("speech.accentEnglish");
   }
 
   function speak(text, accentOverride) {
@@ -267,7 +271,7 @@
       speechState.stopButton.disabled = true;
       if (speechState.reloadButton) speechState.reloadButton.disabled = true;
       speechState.accentInputs.forEach((input) => { input.disabled = true; });
-      speechState.voiceSelect.innerHTML = "<option>当前浏览器不支持系统朗读</option>";
+      speechState.voiceSelect.innerHTML = `<option>${t("speech.unsupportedSystem")}</option>`;
       setStatus("当前浏览器不支持朗读");
       return;
     }

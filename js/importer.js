@@ -84,7 +84,8 @@
       .slice(0, MAX_SENTENCES);
     const number = Math.max(1, Math.floor(Number(candidate.number) || 1));
 
-    if (!words.length && !sentences.length) return null;
+    const manual = candidate.manual === true;
+    if (!words.length && !sentences.length && !manual) return null;
     return {
       id: safeText(candidate.id, 100),
       number,
@@ -95,6 +96,7 @@
       sentences,
       studyNotes: [],
       imported: true,
+      manual,
       sourceName: safeText(candidate.sourceName, 180),
       importedAt: Number(candidate.importedAt) || Date.now()
     };

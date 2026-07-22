@@ -3,37 +3,95 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="何鑫的纯前端英语学习网站，支持课程点读、单词搜索、单词卡与本地学习进度。">
+  <meta name="description" content="何鑫天下第一帅的个人英语学习网站，支持课程点读、单词搜索、单词卡与本地学习进度。">
   <meta name="color-scheme" content="light dark">
-  <title>何鑫的英语学习网站</title>
-  <link rel="stylesheet" href="css/style.css?v=20260722c">
+  <title>何鑫天下第一帅</title>
+  <link rel="stylesheet" href="css/style.css?v=20260722aq">
   <script src="data/lessons.js?v=20260722a" defer></script>
   <script src="data/pronunciations.js?v=20260722a" defer></script>
-  <script src="js/storage.js?v=20260722a" defer></script>
-  <script src="js/speech.js?v=20260722a" defer></script>
+  <script src="js/storage.js?v=20260722z" defer></script>
+  <script src="js/speech.js?v=20260722l" defer></script>
   <script src="js/dictionary.js?v=20260722a" defer></script>
-  <script src="js/importer.js?v=20260722a" defer></script>
-  <script src="js/app.js?v=20260722c" defer></script>
+  <script src="js/images.js?v=20260722p" defer></script>
+  <script src="js/importer.js?v=20260722r" defer></script>
+  <script src="js/i18n.js?v=20260722u" defer></script>
+  <script src="js/profile.js?v=20260722a" defer></script>
+  <script src="js/weather.js?v=20260722z" defer></script>
+  <script src="js/config.js?v=20260722u" defer></script>
+  <script src="js/agent.js?v=20260722ae" defer></script>
+  <script src="js/lesson-editor.js?v=20260722r" defer></script>
+  <script src="js/exporter.js?v=20260722j" defer></script>
+  <script src="js/spelling.js?v=20260722ag" defer></script>
+  <script src="js/app.js?v=20260722ad" defer></script>
 </head>
 <body>
+  <div class="weather-atmosphere" id="weather-atmosphere" aria-hidden="true" hidden></div>
+  <canvas class="weather-canvas" id="weather-canvas" aria-hidden="true" hidden></canvas>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
 
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="#home" aria-label="返回首页">
-        <img class="brand-avatar" src="assets/avatar.jpg" alt="何鑫的头像">
-        <span>
-          <strong>何鑫的英语学习网站</strong>
-          <small>Personal English space</small>
-        </span>
-      </a>
+      <div class="brand-area">
+        <a class="brand" href="#home" aria-label="返回首页">
+          <img class="brand-avatar" src="assets/avatar.jpg" alt="何鑫天下第一帅的头像" data-profile-avatar>
+          <span>
+            <strong data-profile-name>何鑫天下第一帅</strong>
+            <small>Personal English space</small>
+          </span>
+        </a>
+        <button class="profile-edit-trigger" id="profile-edit-trigger" type="button" aria-label="编辑个人资料" data-i18n-aria="profile.edit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z"></path><path d="m14.5 6.7 2.8 2.8"></path></svg>
+        </button>
+      </div>
 
       <nav class="main-nav" aria-label="主要导航">
-        <a href="#home" data-nav="home" aria-current="page">首页</a>
-        <a href="#lessons" data-nav="lessons">课程</a>
-        <a href="#search" data-nav="search">搜索</a>
-        <a href="#flashcards" data-nav="flashcards">单词卡</a>
+        <a href="#home" data-nav="home" data-i18n="nav.home" aria-current="page">首页</a>
+        <a href="#lessons" data-nav="lessons" data-i18n="nav.lessons">课程</a>
+        <a href="#search" data-nav="search" data-i18n="nav.search">搜索</a>
+        <a href="#favorites" data-nav="favorites" data-i18n="nav.favorites">收藏</a>
+        <a href="#flashcards" data-nav="flashcards" data-i18n="nav.flashcards">单词卡</a>
+        <a href="#spelling" data-nav="spelling"><span id="spelling-nav-label">拼写</span></a>
       </nav>
+
+      <label class="language-picker">
+        <span class="sr-only" data-i18n="language.label">界面语言</span>
+        <select id="language-select" aria-label="界面语言" data-i18n-aria="language.label">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+          <option value="ko">한국어</option>
+          <option value="ja">日本語</option>
+        </select>
+      </label>
+
+      <div class="weather-control" id="weather-control">
+        <button class="weather-toggle" id="weather-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="weather-menu" aria-label="天气氛围：晴朗">
+          <span class="weather-current-icon" aria-hidden="true">
+            <svg data-weather-icon="clear" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"></circle><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1 1M11.2 11.2l1 1M12.2 3.8l-1 1M17 16.5a4 4 0 0 0-7.7-1.4A3.2 3.2 0 0 0 10 21h7a2.3 2.3 0 0 0 0-4.5Z"></path></svg>
+            <svg data-weather-icon="rain" viewBox="0 0 24 24"><path d="M6.5 15.5H17a3.5 3.5 0 0 0 .2-7 5.5 5.5 0 0 0-10.5 1A3 3 0 0 0 6.5 15.5Z"></path><path d="m8 18-1 2M12.5 18l-1 2M17 18l-1 2"></path></svg>
+            <svg data-weather-icon="snow" viewBox="0 0 24 24"><path d="M6.5 13.5H17a3.5 3.5 0 0 0 .2-7 5.5 5.5 0 0 0-10.5 1A3 3 0 0 0 6.5 13.5Z"></path><path d="M8 17v4M6.3 18l3.4 2M9.7 18l-3.4 2M16 17v4M14.3 18l3.4 2M17.7 18l-3.4 2"></path></svg>
+          </span>
+          <span id="weather-label">晴朗</span>
+          <svg class="weather-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
+        </button>
+        <div class="weather-menu" id="weather-menu" role="menu" aria-labelledby="weather-menu-title" hidden>
+          <strong id="weather-menu-title">天气氛围</strong>
+          <button type="button" role="menuitemradio" aria-checked="true" data-weather-mode="clear">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+            <span class="weather-option-label">晴朗</span>
+            <span class="weather-option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" role="menuitemradio" aria-checked="false" data-weather-mode="rain">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 14H17a3.5 3.5 0 0 0 .2-7 5.5 5.5 0 0 0-10.5 1A3 3 0 0 0 6.5 14Z"></path><path d="m8 17-1.2 3M12.5 17l-1.2 3M17 17l-1.2 3"></path></svg>
+            <span class="weather-option-label">下雨</span>
+            <span class="weather-option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" role="menuitemradio" aria-checked="false" data-weather-mode="snow">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 13H17a3.5 3.5 0 0 0 .2-7 5.5 5.5 0 0 0-10.5 1A3 3 0 0 0 6.5 13Z"></path><path d="M8 16v5M5.8 17.3l4.4 2.4M10.2 17.3l-4.4 2.4M16 16v5M13.8 17.3l4.4 2.4M18.2 17.3l-4.4 2.4"></path></svg>
+            <span class="weather-option-label">下雪</span>
+            <span class="weather-option-check" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
 
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">
         <span class="theme-icon" aria-hidden="true">
@@ -53,34 +111,34 @@
   <aside class="speech-toolbar" aria-label="朗读设置">
     <div class="speech-toolbar-inner">
       <div class="speech-intro">
-        <span class="control-kicker">朗读设置</span>
-        <span id="speech-status" class="speech-status" aria-live="polite">点击英文即可朗读</span>
+        <span class="control-kicker" data-i18n="speech.settings">朗读设置</span>
+        <span id="speech-status" class="speech-status" data-i18n="speech.ready" aria-live="polite">点击英文即可朗读</span>
       </div>
       <label class="control-field voice-field">
-        <span id="voice-label">英语声音</span>
+        <span id="voice-label" data-i18n="speech.voice">英语声音</span>
         <span class="voice-select-row">
           <select id="voice-select" aria-label="选择英语声音">
             <option>正在载入设备英语声音…</option>
           </select>
-          <button class="voice-reload" id="reload-voices" type="button" aria-label="重新载入设备英语声音">刷新</button>
+          <button class="voice-reload" id="reload-voices" type="button" data-i18n="speech.reload" aria-label="重新载入设备英语声音">刷新</button>
         </span>
       </label>
       <fieldset class="accent-picker">
-        <legend>发音</legend>
+        <legend data-i18n="speech.accent">发音</legend>
         <label>
           <input type="radio" name="speech-accent" value="en-US">
-          <span>美式</span>
+          <span data-i18n="speech.us">美式</span>
         </label>
         <label>
           <input type="radio" name="speech-accent" value="en-GB">
-          <span>英式</span>
+          <span data-i18n="speech.uk">英式</span>
         </label>
       </fieldset>
       <label class="control-field rate-field">
-        <span>语速 <output id="rate-output" for="rate-input">0.8×</output></span>
+        <span><span data-i18n="speech.speed">语速</span> <output id="rate-output" for="rate-input">0.8×</output></span>
         <input id="rate-input" type="range" min="0.5" max="1.3" value="0.8" step="0.1" aria-label="朗读语速">
       </label>
-      <button class="button button-quiet" id="stop-speech" type="button">停止朗读</button>
+      <button class="button button-quiet" id="stop-speech" type="button" data-i18n="speech.stop">停止朗读</button>
     </div>
   </aside>
 
@@ -88,16 +146,16 @@
     <section class="app-view home-view" data-view="home" aria-labelledby="home-title">
       <div class="hero panel">
         <div class="hero-copy">
-          <span class="eyebrow">何鑫的个人学习空间</span>
-          <h1 id="home-title">轻松一点，<br>每天学一点英语。</h1>
-          <p>课程、点读、搜索和复习都放在一个安静的空间里。你的掌握状态、收藏和最近学习记录只保存在当前浏览器。</p>
+          <span class="eyebrow" data-profile-space>何鑫天下第一帅的个人学习空间</span>
+          <h1 id="home-title">归零，更新，<br>重启，向上。</h1>
+          <p lang="en">Return to zero, update, restart, go up.</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#lessons">继续学习</a>
-            <a class="button button-secondary" href="#flashcards">开始单词卡</a>
+            <a class="button button-primary" href="#lessons" data-i18n="home.continue">继续学习</a>
+            <a class="button button-secondary" href="#flashcards" data-i18n="home.cards">开始单词卡</a>
           </div>
         </div>
         <div class="hero-profile" aria-label="个人学习空间">
-          <img src="assets/avatar.jpg" alt="">
+          <img src="assets/avatar.jpg" alt="何鑫天下第一帅的头像" data-profile-avatar>
           <div>
             <span class="profile-label">TODAY'S NOTE</span>
             <strong>Listen · Read · Remember</strong>
@@ -110,9 +168,9 @@
         <div class="section-heading">
           <div>
             <span class="eyebrow">LEARNING OVERVIEW</span>
-            <h2 id="overview-title">学习概览</h2>
+            <h2 id="overview-title" data-i18n="home.overview">学习概览</h2>
           </div>
-          <p>数据会在你学习时自动更新</p>
+          <p data-i18n="home.autoUpdate">数据会在你学习时自动更新</p>
         </div>
         <div class="stats-grid" id="stats-grid" aria-live="polite"></div>
       </section>
@@ -121,9 +179,9 @@
         <div class="section-heading">
           <div>
             <span class="eyebrow">PICK UP WHERE YOU LEFT OFF</span>
-            <h2 id="recent-title">最近学习</h2>
+            <h2 id="recent-title" data-i18n="home.recent">最近学习</h2>
           </div>
-          <a class="text-link" href="#lessons">查看全部课程</a>
+          <a class="text-link" href="#lessons" data-i18n="home.allLessons">查看全部课程</a>
         </div>
         <div id="recent-lessons" class="recent-grid"></div>
       </section>
@@ -132,25 +190,42 @@
     <section class="app-view" data-view="lessons" aria-labelledby="lessons-title" hidden>
       <div class="page-heading">
         <span class="eyebrow">LESSONS</span>
-        <h1 id="lessons-title">课程学习</h1>
-        <p>展开一课开始学习，也可以把自己的 PDF、Word 或图片整理成新课程。</p>
+        <h1 id="lessons-title" data-i18n="lessons.title">课程学习</h1>
+        <p data-i18n="lessons.description">展开一课开始学习，也可以把自己的 PDF、Word 或图片整理成新课程。</p>
       </div>
+
+      <section class="course-export panel" aria-labelledby="course-export-title">
+        <div>
+          <span class="eyebrow">EXPORT</span>
+          <h2 id="course-export-title" data-i18n="export.title">导出课程与学习记录</h2>
+          <p data-i18n="export.hint">可导出全部课程或单独一课，包含当前掌握、复习和收藏状态。</p>
+        </div>
+        <div class="course-export-controls">
+          <label class="control-field">
+            <span data-i18n="export.scope">导出范围</span>
+            <select id="course-export-select"></select>
+          </label>
+          <button class="button button-secondary" id="export-pdf" type="button" data-i18n="export.pdf">导出 PDF</button>
+          <button class="button button-secondary" id="export-word" type="button" data-i18n="export.word">导出 Word</button>
+        </div>
+        <p class="export-status" id="export-status" aria-live="polite"></p>
+      </section>
 
       <section class="lesson-importer panel" aria-labelledby="lesson-importer-title">
         <div class="importer-heading">
           <div>
             <span class="eyebrow">IMPORT A LESSON</span>
-            <h2 id="lesson-importer-title">从文件生成课程</h2>
-            <p>在浏览器中提取文字并自动整理词表与中英句子，保存前可以逐行修改。</p>
+            <h2 id="lesson-importer-title" data-i18n="import.title">从文件生成课程</h2>
+            <p data-i18n="import.description">在浏览器中提取文字并自动整理词表与中英句子，保存前可以逐行修改。</p>
           </div>
-          <span class="local-badge">仅保存在本机</span>
+          <span class="local-badge" data-i18n="import.local">仅保存在本机</span>
         </div>
 
         <label class="lesson-dropzone" id="lesson-dropzone" for="lesson-file-input">
           <input id="lesson-file-input" type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,.bmp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*">
           <span class="file-mark" aria-hidden="true">DOC</span>
           <span class="dropzone-copy">
-            <strong>选择文件，或拖到这里</strong>
+            <strong data-i18n="import.choose">选择文件，或拖到这里</strong>
             <small>支持 PDF、DOCX、JPG、PNG、WEBP、BMP · 最大 20 MB</small>
           </span>
           <span class="button button-secondary" aria-hidden="true">选择文件</span>
@@ -212,15 +287,15 @@
       <div class="lesson-tools panel">
         <label class="switch-row" for="hide-chinese">
           <span>
-            <strong>隐藏中文释义</strong>
-            <small>自测时只看英文和音标</small>
+            <strong data-i18n="lessons.hideChinese">隐藏中文释义</strong>
+            <small data-i18n="lessons.hideChineseHint">自测时只看英文和音标</small>
           </span>
           <input id="hide-chinese" type="checkbox" role="switch">
           <span class="switch-track" aria-hidden="true"></span>
         </label>
         <div class="lesson-tool-actions">
-          <button class="button button-secondary" id="expand-lessons" type="button">全部展开</button>
-          <button class="button button-quiet" id="collapse-lessons" type="button">全部收起</button>
+          <button class="button button-secondary" id="expand-lessons" type="button" data-i18n="lessons.expand">全部展开</button>
+          <button class="button button-quiet" id="collapse-lessons" type="button" data-i18n="lessons.collapse">全部收起</button>
         </div>
       </div>
 
@@ -230,16 +305,16 @@
     <section class="app-view" data-view="search" aria-labelledby="search-title" hidden>
       <div class="page-heading">
         <span class="eyebrow">WORD FINDER</span>
-        <h1 id="search-title">单词搜索</h1>
-        <p>课程词汇支持中英文搜索；课程外的英文单词会继续查询在线词典。</p>
+        <h1 id="search-title" data-i18n="search.title">单词搜索</h1>
+        <p data-i18n="search.description">课程词汇支持中英文搜索；课程外的英文单词会继续查询在线词典。</p>
       </div>
 
       <div class="search-box panel">
-        <label for="search-input" id="search-label">搜索课程词条或在线英文单词</label>
+        <label for="search-input" id="search-label" data-i18n="search.label">搜索全部课程内容，或查询任意英文单词</label>
         <div class="search-input-wrap">
           <span aria-hidden="true">Aa</span>
-          <input id="search-input" type="search" autocomplete="off" spellcheck="false" placeholder="例如：junction、serendipity、郊区">
-          <button id="clear-search" class="clear-search" type="button" aria-label="清空搜索" hidden>清空</button>
+          <input id="search-input" type="search" autocomplete="off" spellcheck="false" placeholder="例如：junction、serendipity、郊区" data-i18n-placeholder="search.placeholder">
+          <button id="clear-search" class="clear-search" type="button" data-i18n="search.clear" aria-label="清空搜索" hidden>清空</button>
         </div>
       </div>
       <div class="search-meta" id="search-meta" aria-live="polite"></div>
@@ -258,21 +333,39 @@
       </section>
     </section>
 
+    <section class="app-view" data-view="favorites" aria-labelledby="favorites-title" hidden>
+      <div class="page-heading">
+        <span class="eyebrow">SAVED WORDS</span>
+        <h1 id="favorites-title" data-i18n="favorites.title">我的收藏</h1>
+        <p data-i18n="favorites.description">集中查看收藏的单词与短语，点击卡片可以直接朗读。</p>
+      </div>
+
+      <div class="favorites-toolbar panel">
+        <span id="favorites-summary" aria-live="polite">还没有收藏词条</span>
+        <div class="favorites-toolbar-actions">
+          <a class="button button-secondary" href="#lessons" data-i18n="favorites.browse">浏览课程</a>
+          <a class="button button-primary" href="#flashcards" data-review-favorites data-i18n="favorites.review">复习收藏</a>
+        </div>
+      </div>
+
+      <div class="word-grid favorites-grid" id="favorites-list" aria-live="polite"></div>
+    </section>
+
     <section class="app-view" data-view="flashcards" aria-labelledby="flashcards-title" hidden>
       <div class="page-heading">
         <span class="eyebrow">FOCUS MODE</span>
-        <h1 id="flashcards-title">单词卡</h1>
-        <p>先回忆中文，再点击卡片翻面。使用状态按钮整理复习节奏。</p>
+        <h1 id="flashcards-title" data-i18n="cards.title">单词卡</h1>
+        <p data-i18n="cards.description">先回忆中文，再点击卡片翻面。使用状态按钮整理复习节奏。</p>
       </div>
 
       <div class="deck-toolbar panel">
         <label class="control-field">
-          <span>卡片范围</span>
+          <span data-i18n="cards.scope">卡片范围</span>
           <select id="deck-filter">
             <option value="all">全部课程</option>
           </select>
         </label>
-        <button class="button button-secondary" id="shuffle-deck" type="button">打乱顺序</button>
+        <button class="button button-secondary" id="shuffle-deck" type="button" data-i18n="cards.shuffle">打乱顺序</button>
         <span class="deck-progress" id="deck-progress" aria-live="polite"></span>
       </div>
 
@@ -280,6 +373,10 @@
         <button class="flashcard" id="flashcard" type="button" aria-pressed="false">
           <span class="flashcard-face flashcard-front">
             <span class="card-context" id="card-context"></span>
+            <span class="card-image" id="card-image-wrap">
+              <img id="card-image" alt="" decoding="async" fetchpriority="high" referrerpolicy="no-referrer" hidden>
+              <span class="card-image-placeholder" id="card-image-placeholder">正在查找图片…</span>
+            </span>
             <strong id="card-english">—</strong>
             <span class="card-ipa" id="card-ipa"></span>
             <span class="flip-hint">点击查看中文</span>
@@ -291,20 +388,147 @@
           </span>
         </button>
 
+        <div class="card-image-meta">
+          <a class="card-image-credit" id="card-image-credit" href="#" target="_blank" rel="noopener noreferrer" hidden></a>
+          <button class="change-card-image" id="change-card-image" type="button" data-i18n="images.change" hidden>图片不合适？换一张</button>
+          <span class="card-image-status" id="card-image-status" aria-live="polite"></span>
+        </div>
+
         <div class="card-controls">
-          <button class="button button-quiet" id="previous-card" type="button">上一张</button>
-          <button class="button button-secondary" id="speak-card" type="button">朗读单词</button>
-          <button class="button button-quiet" id="next-card" type="button">下一张</button>
+          <button class="button button-quiet" id="previous-card" type="button" data-i18n="cards.previous">上一张</button>
+          <button class="button button-secondary" id="speak-card" type="button" data-i18n="cards.speak">朗读单词</button>
+          <button class="button button-quiet" id="next-card" type="button" data-i18n="cards.next">下一张</button>
         </div>
 
         <div class="card-status-actions" aria-label="单词学习状态">
-          <button type="button" data-card-status="mastered" aria-pressed="false">已掌握</button>
-          <button type="button" data-card-status="review" aria-pressed="false">待复习</button>
-          <button type="button" data-card-favorite aria-pressed="false">收藏</button>
+          <button type="button" data-card-status="mastered" data-i18n="cards.mastered" aria-pressed="false">已掌握</button>
+          <button type="button" data-card-status="review" data-i18n="cards.review" aria-pressed="false">待复习</button>
+          <button type="button" data-card-favorite data-i18n="cards.favorite" aria-pressed="false">收藏</button>
         </div>
       </div>
     </section>
+
+    <section class="app-view spelling-view" id="spelling-view" data-view="spelling" aria-labelledby="spelling-title" hidden>
+      <div class="page-heading">
+        <span class="eyebrow">LISTEN · TYPE · CHECK</span>
+        <h1 id="spelling-title">拼写练习</h1>
+        <p id="spelling-description">先听发音，再拼出单词、短语或完整句子。</p>
+      </div>
+
+      <div class="spelling-toolbar panel">
+        <div class="spelling-mode-switch" role="tablist" aria-label="拼写练习类型">
+          <button type="button" role="tab" aria-selected="true" data-spelling-mode="word">单词与短语</button>
+          <button type="button" role="tab" aria-selected="false" data-spelling-mode="sentence">句子</button>
+        </div>
+        <label class="control-field spelling-lesson-field">
+          <span id="spelling-scope-label">课程范围</span>
+          <select id="spelling-lesson-filter"></select>
+        </label>
+        <button class="button button-secondary spelling-shuffle" id="spelling-shuffle" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4 0 6 10 10 10h3M17 4l3 3-3 3M4 17h3c1.6 0 2.8-1.5 4-3.4M17 14l3 3-3 3M13 8.5c1.1-.9 2.3-1.5 4-1.5h3"></path></svg>
+          <span>重新出题</span>
+        </button>
+      </div>
+
+      <div class="spelling-layout">
+        <section class="spelling-practice panel" aria-labelledby="spelling-question-type">
+          <div class="spelling-question-meta">
+            <span id="spelling-question-progress">第 1 / 1 题</span>
+            <span id="spelling-question-lesson"></span>
+          </div>
+
+          <p class="spelling-empty" id="spelling-empty" hidden></p>
+          <div id="spelling-practice-content">
+            <div class="spelling-prompt">
+              <span class="spelling-prompt-kicker" id="spelling-question-type">根据发音和中文写出英文</span>
+              <p class="spelling-translation" id="spelling-translation"></p>
+              <p class="spelling-hint-text" id="spelling-hint-text" hidden></p>
+              <button class="spelling-listen" id="spelling-listen" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 4V6L8 10H5Z"></path><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"></path></svg>
+                <span id="spelling-listen-label">播放发音</span>
+              </button>
+            </div>
+
+            <form class="spelling-answer-form" id="spelling-form">
+              <label for="spelling-word-input" id="spelling-answer-label">你的答案</label>
+              <input id="spelling-word-input" type="text" aria-labelledby="spelling-answer-label" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="220" placeholder="输入英文拼写">
+              <textarea id="spelling-sentence-input" rows="4" aria-labelledby="spelling-answer-label" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="600" placeholder="输入完整英文句子" hidden></textarea>
+              <span class="spelling-shortcut" id="spelling-shortcut">按 Enter 检查</span>
+              <div class="spelling-answer-actions">
+                <button class="button button-quiet" id="spelling-hint" type="button">提示</button>
+                <button class="button button-quiet" id="spelling-skip" type="button">跳过</button>
+                <button class="button button-primary" id="spelling-check" type="submit"><span id="spelling-check-label">检查答案</span></button>
+              </div>
+            </form>
+
+            <div class="spelling-feedback" id="spelling-feedback" role="status" aria-live="polite" hidden>
+              <strong id="spelling-feedback-title"></strong>
+              <p id="spelling-expected"></p>
+            </div>
+          </div>
+        </section>
+
+        <aside class="spelling-stats panel" aria-labelledby="spelling-progress-title">
+          <span class="eyebrow">SESSION</span>
+          <h2 id="spelling-progress-title">练习进度</h2>
+          <div class="spelling-accuracy-ring" id="spelling-accuracy-ring" style="--spelling-progress: 0deg" role="img" aria-label="正确率 0%">
+            <strong id="spelling-accuracy">0%</strong>
+          </div>
+          <div class="spelling-stat-list">
+            <div><span id="spelling-correct-label">正确</span><strong id="spelling-correct-count">0</strong></div>
+            <div><span id="spelling-attempted-label">已作答</span><strong id="spelling-attempted-count">0</strong></div>
+            <div><span id="spelling-streak-label">连续正确</span><strong id="spelling-streak-count">0</strong></div>
+          </div>
+        </aside>
+      </div>
+    </section>
   </main>
+
+  <aside class="agent-widget" id="agent-widget">
+    <section class="agent-panel" id="agent-panel" role="dialog" aria-modal="false" hidden>
+      <header class="agent-header">
+        <img class="agent-header-avatar" src="assets/xiaohe-handdrawn.png?v=20260722b" alt="" width="26" height="26">
+        <div class="agent-identity">
+          <strong id="agent-title">小何</strong>
+          <span id="agent-subtitle">英语学习助手</span>
+          <small class="agent-status" id="agent-status" data-status="checking">正在连接</small>
+        </div>
+        <div class="agent-header-actions">
+          <button class="agent-icon-button" id="agent-clear" type="button" aria-label="清空对话">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
+          </button>
+          <button class="agent-icon-button" id="agent-close" type="button" aria-label="关闭小何">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="agent-messages" id="agent-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+      <div class="agent-quick-actions" aria-label="快捷提问">
+        <button class="agent-quick-action" type="button" data-agent-copy="dialogue" data-agent-prompt="dialoguePrompt">英语对话</button>
+        <button class="agent-quick-action" type="button" data-agent-copy="correct" data-agent-prompt="correctPrompt">批改句子</button>
+        <button class="agent-quick-action" type="button" data-agent-copy="explain" data-agent-prompt="explainPrompt">解释单词</button>
+        <button class="agent-quick-action" type="button" data-agent-copy="grammar" data-agent-prompt="grammarPrompt">解析语法</button>
+      </div>
+
+      <form class="agent-composer" id="agent-form">
+        <label class="sr-only" for="agent-input">向小何发送消息</label>
+        <textarea id="agent-input" rows="1" maxlength="2000" placeholder="问小何英语问题…"></textarea>
+        <button class="agent-send" id="agent-send" type="submit" aria-label="发送">
+          <span id="agent-send-label">发送</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4.5 14-3-6.5L5 12Zm6.5.5L19 5"></path></svg>
+        </button>
+      </form>
+      <small class="agent-history-note" id="agent-history-note">对话记录仅保存在当前浏览器</small>
+    </section>
+
+    <button class="agent-launcher" id="agent-launcher" type="button" aria-expanded="false" aria-controls="agent-panel" aria-label="找小何聊聊">
+      <span class="agent-launcher-label" id="agent-launcher-label">找小何聊聊</span>
+      <img src="assets/xiaohe-handdrawn.png?v=20260722b" alt="" width="54" height="54" loading="eager" decoding="async" draggable="false">
+      <span class="agent-notification" aria-hidden="true"></span>
+    </button>
+  </aside>
 
   <div class="word-popover" id="word-popover" role="dialog" aria-modal="false" aria-labelledby="word-popover-title" hidden>
     <button class="popover-close" id="word-popover-close" type="button" aria-label="关闭单词释义">关闭</button>
@@ -320,8 +544,79 @@
   </div>
   <div class="popover-scrim" id="popover-scrim" hidden></div>
 
+  <dialog class="lesson-editor-dialog" id="lesson-editor-dialog" aria-labelledby="lesson-editor-title">
+    <form class="lesson-editor-form" id="lesson-editor-form">
+      <input id="lesson-editor-action" type="hidden">
+      <input id="lesson-editor-lesson-id" type="hidden">
+      <input id="lesson-editor-note-id" type="hidden">
+      <div class="dialog-heading">
+        <span class="eyebrow">EDIT LESSON</span>
+        <h2 id="lesson-editor-title">编辑课程</h2>
+      </div>
+      <label class="editor-field" data-editor-field="title">
+        <span data-i18n="edit.field.title">标题</span>
+        <input id="lesson-editor-title-input" type="text" maxlength="180" autocomplete="off">
+      </label>
+      <label class="editor-field" data-editor-field="english">
+        <span data-i18n="edit.field.english">英文</span>
+        <textarea id="lesson-editor-english" rows="4" maxlength="3000" spellcheck="true"></textarea>
+      </label>
+      <label class="editor-field" data-editor-field="ipa">
+        <span data-i18n="edit.field.ipa">音标</span>
+        <input id="lesson-editor-ipa" type="text" maxlength="500" autocomplete="off">
+      </label>
+      <label class="editor-field" data-editor-field="chinese">
+        <span data-i18n="edit.field.chinese">中文</span>
+        <textarea id="lesson-editor-chinese" rows="3" maxlength="3000"></textarea>
+      </label>
+      <label class="editor-field" data-editor-field="description">
+        <span data-i18n="edit.field.description">说明</span>
+        <textarea id="lesson-editor-description" rows="3" maxlength="1200"></textarea>
+      </label>
+      <label class="editor-field" data-editor-field="structures">
+        <span data-i18n="edit.field.structures">语法结构（每行一条）</span>
+        <textarea id="lesson-editor-structures" rows="5" maxlength="3000" spellcheck="false"></textarea>
+      </label>
+      <p class="editor-error" id="lesson-editor-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button class="button button-quiet" id="lesson-editor-cancel" type="button" data-i18n="edit.cancel">取消</button>
+        <button class="button button-primary" type="submit" data-i18n="edit.save">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="lesson-editor-dialog profile-dialog" id="profile-dialog" aria-labelledby="profile-dialog-title">
+    <form class="lesson-editor-form profile-form" id="profile-form">
+      <div class="dialog-heading">
+        <span class="eyebrow">PROFILE</span>
+        <h2 id="profile-dialog-title" data-i18n="profile.title">编辑个人资料</h2>
+      </div>
+      <div class="profile-avatar-editor">
+        <img id="profile-avatar-preview" src="assets/avatar.jpg" alt="头像预览">
+        <div class="profile-avatar-controls">
+          <span class="profile-field-label" data-i18n="profile.avatar">头像</span>
+          <div class="profile-avatar-actions">
+            <label class="button button-secondary" for="profile-avatar-input" data-i18n="profile.chooseAvatar">选择图片</label>
+            <input class="sr-only" id="profile-avatar-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+            <button class="button button-quiet" id="profile-avatar-reset" type="button" data-i18n="profile.resetAvatar">恢复默认</button>
+          </div>
+          <small data-i18n="profile.avatarHint">支持 JPG、PNG、WebP，图片只保存在当前浏览器。</small>
+        </div>
+      </div>
+      <label class="editor-field">
+        <span data-i18n="profile.name">网名</span>
+        <input id="profile-name-input" type="text" maxlength="30" autocomplete="nickname" value="何鑫天下第一帅">
+      </label>
+      <p class="editor-error" id="profile-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button class="button button-quiet" id="profile-cancel" type="button" data-i18n="edit.cancel">取消</button>
+        <button class="button button-primary" type="submit" data-i18n="edit.save">保存</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer class="site-footer">
-    <p>何鑫的英语学习网站</p>
+    <p data-profile-name>何鑫天下第一帅</p>
     <p>无需登录 · 数据保存在本机 · 支持 GitHub Pages</p>
   </footer>
 

@@ -1,0 +1,13 @@
+{
+  "name": "hexin-english-learning",
+  "version": "1.0.0",
+  "private": true,
+  "description": "何鑫的英语学习网站与小何学习助手",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
