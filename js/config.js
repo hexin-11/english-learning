@@ -1,14 +1,14 @@
 (function () {
   "use strict";
 
-  const isLocal = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+  const useLocalAgent = new URLSearchParams(window.location.search).get("agent") === "local";
 
-  // 部署 GitHub Pages 时，把空字符串改为已部署的 HTTPS 后端地址。
-  // Gemini 密钥只放在后端环境变量中，绝不能写进此文件。
+  // 默认连接 Cloudflare Worker；本地调试后端时使用 ?agent=local。
+  // Gemini 密钥只保存在 Worker Secret 或本机 .env.local，绝不能写进此文件。
   window.APP_CONFIG = Object.freeze({
-    agentApiBase: isLocal
+    agentApiBase: useLocalAgent
       ? "http://127.0.0.1:8787"
-      : "https://xiaohe-english-agent-hexin11.onrender.com",
+      : "https://xiaohe-english-agent-hexin11.hexin20021111.workers.dev",
 
     // Supabase 项目 URL 与 publishable key 可以安全放在公开前端。
     // 不要在这里填写 secret key 或 service_role key。
