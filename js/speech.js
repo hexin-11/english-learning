@@ -47,14 +47,54 @@
       });
   }
 
+  function normalizeLanguageTag(language) {
+    return String(language || "")
+      .trim()
+      .replace(/_/g, "-")
+      .toLowerCase();
+  }
+
+  function isNoveltyVoice(voice) {
+    const name = String(voice?.name || "").toLowerCase();
+    return /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox)\b/.test(name);
+  }
+
+  function naturalVoiceScore(voice) {
+    const name = String(voice?.name || "").toLowerCase();
+    let score = 0;
+    if (voice?.default) score += 100;
+    if (/natural|neural|premium|enhanced/.test(name)) score += 50;
+    if (/google|microsoft|samantha|daniel|ava|allison|susan|alex|tom/.test(name)) score += 25;
+    if (voice?.localService) score += 5;
+    if (isNoveltyVoice(voice)) score -= 1000;
+    return score;
+  }
+
   function voicesForAccent(accent) {
-    const normalized = accent.toLowerCase();
-    const exact = speechState.voices.filter((voice) => voice.lang.toLowerCase() === normalized);
+    const normalized = normalizeLanguageTag(accent);
+    const exact = speechState.voices.filter((voice) => normalizeLanguageTag(voice.lang) === normalized);
     if (exact.length) return exact;
 
     const language = normalized.split("-")[0];
-    const sameLanguage = speechState.voices.filter((voice) => voice.lang.toLowerCase().startsWith(`${language}-`));
+    const sameLanguage = speechState.voices.filter((voice) => normalizeLanguageTag(voice.lang).startsWith(`${language}-`));
     return sameLanguage.length ? sameLanguage : speechState.voices;
+  }
+
+  function preferredAccentVoice(accent) {
+    const normalizedAccent = normalizeLanguageTag(accent);
+    const exact = speechState.voices
+      .filter((voice) => normalizeLanguageTag(voice.lang) === normalizedAccent)
+      .sort((left, right) => naturalVoiceScore(right) - naturalVoiceScore(left));
+    if (!exact.length) return null;
+
+    const selected = selectedVoice();
+    if (selected
+      && normalizeLanguageTag(selected.lang) === normalizedAccent
+      && !isNoveltyVoice(selected)) {
+      return selected;
+    }
+
+    return exact[0] || null;
   }
 
   function preferredVoice(voices, accent, savedURI) {
@@ -147,10 +187,7 @@
       return selectedVoice() || preferredVoice(speechState.voices, getAccent());
     }
 
-    const candidates = voicesForAccent(accentOverride);
-    const selected = selectedVoice();
-    return candidates.find((voice) => selected && voice.voiceURI === selected.voiceURI)
-      || preferredVoice(candidates, accentOverride);
+    return preferredAccentVoice(accentOverride);
   }
 
   function accentName(lang) {
@@ -180,8 +217,10 @@
     const utterance = new SpeechSynthesisUtterance(content);
 
     window.speechSynthesis.cancel();
-    utterance.lang = voice ? voice.lang : fallbackAccent;
+    utterance.lang = voice ? String(voice.lang).replace(/_/g, "-") : fallbackAccent;
     utterance.rate = Number.isFinite(rate) ? rate : 0.8;
+    utterance.pitch = 1;
+    utterance.volume = 1;
     if (voice) utterance.voice = voice;
 
     speechState.utterance = utterance;
@@ -198,6 +237,7 @@
       }
     });
 
+    window.speechSynthesis.resume?.();
     window.speechSynthesis.speak(utterance);
   }
 
