@@ -734,11 +734,26 @@
     }
   }
 
-  async function executeToolCalls(calls) {
+  function toolExecutionKey(call) {
+    try {
+      return `${call?.name || ""}:${JSON.stringify(call?.args || {})}`;
+    } catch (_error) {
+      return `${call?.name || ""}:unserializable`;
+    }
+  }
+
+  async function executeToolCalls(calls, completedMutations) {
     if (!window.XiaoHeTools?.execute) {
       return calls.map((call) => ({ id: call.id || "", name: call.name, result: { ok: false, error: "TOOLS_UNAVAILABLE" } }));
     }
-    const guarded = calls.filter((call) => window.XiaoHeTools.requiresConfirmation(call));
+    const confirmationKeys = new Set();
+    const guarded = calls.filter((call) => {
+      if (!window.XiaoHeTools.requiresConfirmation(call)) return false;
+      const key = toolExecutionKey(call);
+      if (completedMutations?.has(key) || confirmationKeys.has(key)) return false;
+      confirmationKeys.add(key);
+      return true;
+    });
     let approved = true;
     if (guarded.length) {
       const plan = guarded.map((call, index) => `${index + 1}. ${window.XiaoHeTools.describe(call)}`).join("\n");
@@ -747,9 +762,16 @@
     const results = [];
     for (const call of calls) {
       const needsApproval = window.XiaoHeTools.requiresConfirmation(call);
-      const result = needsApproval && !approved
-        ? { ok: false, error: "USER_DENIED", message: text("denied") }
-        : await window.XiaoHeTools.execute(call);
+      const key = toolExecutionKey(call);
+      let result;
+      if (needsApproval && completedMutations?.has(key)) {
+        result = { ...completedMutations.get(key), repeatedCallSkipped: true };
+      } else {
+        result = needsApproval && !approved
+          ? { ok: false, error: "USER_DENIED", message: text("denied") }
+          : await window.XiaoHeTools.execute(call);
+        if (needsApproval && result?.ok) completedMutations?.set(key, result);
+      }
       results.push({ id: call.id || "", name: call.name, result });
     }
     return results;
@@ -788,6 +810,7 @@
 
     try {
       const trace = [];
+      const completedMutations = new Map();
       let reply = "";
       for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
         const response = await requestReply(message, previous, attachment, trace);
@@ -796,10 +819,13 @@
           break;
         }
         updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
-        const results = await executeToolCalls(response.toolCalls);
+        const results = await executeToolCalls(response.toolCalls, completedMutations);
         trace.push({ calls: response.toolCalls, results });
       }
-      if (!reply) reply = "任务步骤已经执行，但这次没有生成最终说明。请查看刚才的执行结果。";
+      if (!reply) {
+        reply = window.XiaoHeTools?.summarizeTrace?.(trace)
+          || "我没有完成这次操作，请再说一次你要修改的课程和内容。";
+      }
       list.querySelector("[data-agent-typing]")?.remove();
       state.messages.push({ role: "assistant", content: reply });
       saveHistory();

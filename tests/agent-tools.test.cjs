@@ -5,6 +5,7 @@ const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "js", "agent-tools.js"), "utf8");
+const agentSource = fs.readFileSync(path.join(root, "js", "agent.js"), "utf8");
 const savedLessons = [];
 const prepended = [];
 const presentations = [];
@@ -69,6 +70,8 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "create_lesson" }), true);
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "create_presentation" }), true);
   assert.match(source, /pptx\.writeFile\(\{ fileName, compression: true \}\)/);
+  assert.match(agentSource, /XiaoHeTools\?\.summarizeTrace\?\.\(trace\)/);
+  assert.match(agentSource, /completedMutations\.get\(key\)/);
 
   const created = await window.XiaoHeTools.execute({
     name: "create_lesson",
@@ -79,10 +82,32 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
     }
   });
   assert.equal(created.ok, true);
+  assert.deepEqual(Array.from(created.addedWords), ["passport"]);
+  assert.equal(created.addedSentenceCount, 1);
   assert.equal(savedLessons.length, 1);
   assert.equal(prepended[0], savedLessons[0].id);
   assert.equal(window.XiaoHeTools.takeReloadRequest(), true);
   assert.equal(window.XiaoHeTools.takeReloadRequest(), false);
+
+  const createSummary = window.XiaoHeTools.summarizeTrace([{
+    calls: [{ name: "create_lesson", args: { title: "抖音中学习英语" } }],
+    results: [{
+      name: "create_lesson",
+      result: {
+        ok: true,
+        lesson: { title: "抖音中学习英语" },
+        addedWords: ["intimidate"],
+        addedSentenceCount: 0
+      }
+    }]
+  }]);
+  assert.equal(createSummary, "已创建课程“抖音中学习英语”，并加入单词 intimidate，并放到课程列表最前面。");
+
+  const deniedSummary = window.XiaoHeTools.summarizeTrace([{
+    calls: [{ name: "edit_lesson", args: { lesson: "第一课", operation: "add_word", english: "intimidate" } }],
+    results: [{ name: "edit_lesson", result: { ok: false, error: "USER_DENIED" } }]
+  }]);
+  assert.equal(deniedSummary, "你取消了操作，所以没有修改课程。");
 
   const presentation = await window.XiaoHeTools.execute({
     name: "create_presentation",

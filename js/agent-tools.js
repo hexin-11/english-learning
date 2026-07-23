@@ -171,7 +171,13 @@
     const saved = window.LessonImporter.saveLesson(lesson);
     window.LessonEditor?.prepend?.(saved.id);
     reloadRequested = true;
-    return { ok: true, lesson: lessonSummary(saved), message: "课程已创建并放到课程列表最前面。" };
+    return {
+      ok: true,
+      lesson: lessonSummary(saved),
+      addedWords: lesson.words.map((word) => word.english),
+      addedSentenceCount: lesson.sentences.length,
+      message: "课程已创建并放到课程列表最前面。"
+    };
   }
 
   function editLesson(args) {
@@ -180,19 +186,25 @@
     if (!window.LessonEditor?.canEdit?.(lesson)) return { ok: false, error: "LESSON_READ_ONLY" };
     const operation = cleanText(args.operation, 40);
     let saved;
+    let item = null;
     if (operation === "rename") saved = window.LessonEditor.rename(lesson, cleanText(args.title, 180));
-    else if (operation === "add_word") saved = window.LessonEditor.addWord(lesson, {
-      english: cleanText(args.english, 160),
-      ipa: cleanText(args.ipa, 160) || "/音标待补充/",
-      chinese: cleanText(args.chinese, 300) || "中文释义待补充"
-    });
-    else if (operation === "add_sentence") saved = window.LessonEditor.addSentence(lesson, {
-      english: cleanText(args.english, 1200),
-      chinese: cleanText(args.chinese, 1200) || "中文翻译待补充"
-    });
+    else if (operation === "add_word") {
+      item = {
+        english: cleanText(args.english, 160),
+        ipa: cleanText(args.ipa, 160) || "/音标待补充/",
+        chinese: cleanText(args.chinese, 300) || "中文释义待补充"
+      };
+      saved = window.LessonEditor.addWord(lesson, item);
+    } else if (operation === "add_sentence") {
+      item = {
+        english: cleanText(args.english, 1200),
+        chinese: cleanText(args.chinese, 1200) || "中文翻译待补充"
+      };
+      saved = window.LessonEditor.addSentence(lesson, item);
+    }
     else return { ok: false, error: "INVALID_OPERATION" };
     reloadRequested = true;
-    return { ok: true, lesson: lessonSummary(saved), operation };
+    return { ok: true, lesson: lessonSummary(saved), operation, item };
   }
 
   function deleteLesson(args) {
@@ -362,6 +374,74 @@
     return labels[call?.name] || cleanText(call?.name, 80);
   }
 
+  function toolErrorMessage(error) {
+    const messages = {
+      USER_DENIED: "你取消了操作，所以没有修改课程。",
+      LESSON_NOT_FOUND: "没有找到指定课程，所以没有完成修改。",
+      LESSON_READ_ONLY: "这节课当前不可编辑，所以没有完成修改。",
+      WORD_NOT_FOUND: "没有在课程中找到这个单词，所以没有更新学习状态。",
+      IMPORTER_UNAVAILABLE: "课程保存功能暂时不可用，请刷新页面后重试。",
+      TOOLS_UNAVAILABLE: "网页工具暂时不可用，请刷新页面后重试。"
+    };
+    return messages[cleanText(error, 80)] || "有一步没有执行成功，请再试一次。";
+  }
+
+  function summarizeSuccess(call, result) {
+    const args = call?.args || {};
+    const lessonTitle = cleanText(result?.lesson?.title || args.lesson, 100);
+    if (call?.name === "create_lesson") {
+      const words = (Array.isArray(result.addedWords) ? result.addedWords : [])
+        .map((word) => cleanText(word, 80))
+        .filter(Boolean);
+      const wordText = words.length
+        ? `，并加入${words.length === 1 ? `单词 ${words[0]}` : `${words.length} 个单词（${words.slice(0, 3).join("、")}${words.length > 3 ? "等" : ""}）`}`
+        : "";
+      const sentenceCount = Number(result.addedSentenceCount) || 0;
+      const sentenceText = sentenceCount ? `和 ${sentenceCount} 个学习句子` : "";
+      return `已创建课程“${lessonTitle || cleanText(args.title, 100) || "新课程"}”${wordText}${sentenceText}，并放到课程列表最前面。`;
+    }
+    if (call?.name === "edit_lesson") {
+      if (result.operation === "rename") return `已把课程改名为“${lessonTitle || cleanText(args.title, 100)}”。`;
+      if (result.operation === "add_word") {
+        const word = cleanText(result.item?.english || args.english, 100);
+        return `已把单词 ${word || "该词"} 添加到课程“${lessonTitle || "指定课程"}”。`;
+      }
+      if (result.operation === "add_sentence") return `已把句子添加到课程“${lessonTitle || "指定课程"}”。`;
+    }
+    if (call?.name === "delete_lesson") return `已删除课程“${cleanText(result.deleted?.title, 100) || "指定课程"}”。`;
+    if (call?.name === "update_word_state") {
+      const actions = { favorite: "收藏", unfavorite: "取消收藏", mastered: "标记为已掌握", review: "加入待复习" };
+      return `已将 ${cleanText(result.word, 100) || cleanText(args.word, 100)} ${actions[result.action] || "更新状态"}。`;
+    }
+    if (call?.name === "navigate_to_page") return "已为你打开对应页面。";
+    if (call?.name === "export_lesson") return `已完成 ${cleanText(result.format, 10).toUpperCase()} 导出。`;
+    if (call?.name === "create_presentation") return `已生成并下载“${cleanText(result.fileName, 120) || "英语学习演示.pptx"}”。`;
+    return "";
+  }
+
+  function summarizeTrace(trace) {
+    const summaries = [];
+    const failures = [];
+    (Array.isArray(trace) ? trace : []).forEach((round) => {
+      const calls = Array.isArray(round?.calls) ? round.calls : [];
+      const results = Array.isArray(round?.results) ? round.results : [];
+      results.forEach((entry, index) => {
+        const call = calls[index] || { name: entry?.name, args: {} };
+        const result = entry?.result || {};
+        if (result.ok) {
+          const summary = summarizeSuccess(call, result);
+          if (summary && !summaries.includes(summary)) summaries.push(summary);
+        } else {
+          const message = result.message || toolErrorMessage(result.error);
+          if (message && !failures.includes(message)) failures.push(message);
+        }
+      });
+    });
+    if (summaries.length) return [...summaries, ...failures].join("\n");
+    if (failures.length) return failures.join("\n");
+    return "我没有完成这次操作，请再说一次你要修改的课程和内容。";
+  }
+
   async function execute(call) {
     const args = call?.args && typeof call.args === "object" ? call.args : {};
     const handlers = {
@@ -395,6 +475,7 @@
     context,
     execute,
     describe,
+    summarizeTrace,
     requiresConfirmation: (call) => MUTATING_TOOLS.has(call?.name),
     takeReloadRequest
   });
