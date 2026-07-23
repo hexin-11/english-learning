@@ -36,6 +36,10 @@
   let cardFlipped = false;
   let activePopoverWord = null;
   let activeWordTrigger = null;
+  let wordPopoverController = null;
+  let wordPopoverSequence = 0;
+  let flashcardDictionaryController = null;
+  let flashcardDictionarySequence = 0;
   let onlineSearchTimer = null;
   let onlineSearchController = null;
   let onlineSearchSequence = 0;
@@ -501,6 +505,8 @@
     const labels = {
       noun: "名词",
       verb: "动词",
+      "auxiliary verb": "助动词",
+      "modal verb": "情态动词",
       adjective: "形容词",
       adverb: "副词",
       pronoun: "代词",
@@ -509,9 +515,105 @@
       interjection: "感叹词",
       exclamation: "感叹词",
       determiner: "限定词",
-      numeral: "数词"
+      article: "冠词",
+      numeral: "数词",
+      phrase: "短语",
+      abbreviation: "缩写",
+      prefix: "前缀",
+      suffix: "后缀"
     };
-    return labels[value] || "释义";
+    return labels[String(value || "").toLocaleLowerCase("en")] || "其他";
+  }
+
+  function lexicalMeaningsMarkup(meanings, className) {
+    return (Array.isArray(meanings) ? meanings : []).map((meaning) => {
+      const definitions = (Array.isArray(meaning.definitions) ? meaning.definitions : [])
+        .filter((definition) => definition.chinese || definition.definition);
+      if (!definitions.length) return "";
+      const partOfSpeech = String(meaning.partOfSpeech || "meaning");
+      return `
+        <section class="${className}-meaning">
+          <h3><span>${escapeHTML(partOfSpeechLabel(partOfSpeech))}</span><small>${escapeHTML(partOfSpeech)}</small></h3>
+          <ol>
+            ${definitions.map((definition) => `
+              <li>
+                ${definition.chinese ? `<strong>${escapeHTML(definition.chinese)}</strong>` : ""}
+                ${definition.definition ? `<p lang="en">${escapeHTML(definition.definition)}</p>` : ""}
+                ${definition.example ? `<blockquote lang="en">${escapeHTML(definition.example)}</blockquote>` : ""}
+              </li>
+            `).join("")}
+          </ol>
+        </section>
+      `;
+    }).join("");
+  }
+
+  function fallbackPartOfSpeech(word) {
+    const english = String(word?.english || "").trim();
+    if (/\s/.test(english)) return "phrase";
+    const chinese = String(word?.chinese || "");
+    const markers = [
+      ["名词", "noun"],
+      ["动词", "verb"],
+      ["形容词", "adjective"],
+      ["副词", "adverb"],
+      ["介词", "preposition"],
+      ["连词", "conjunction"],
+      ["代词", "pronoun"]
+    ];
+    return markers.find(([label]) => chinese.includes(`（${label}）`) || chinese.includes(`(${label})`))?.[1] || "";
+  }
+
+  async function renderFlashcardDictionary(word) {
+    const sequence = ++flashcardDictionarySequence;
+    flashcardDictionaryController?.abort();
+    flashcardDictionaryController = null;
+    const chinese = $("#card-chinese");
+    const meanings = $("#card-meanings");
+    const status = $("#card-lexical-status");
+    const back = $(".flashcard-back");
+    const fallbackPart = fallbackPartOfSpeech(word);
+
+    chinese.hidden = false;
+    chinese.textContent = word?.chinese || "—";
+    meanings.hidden = true;
+    meanings.replaceChildren();
+    back.classList.remove("has-lexical-meanings");
+    status.textContent = fallbackPart ? `${partOfSpeechLabel(fallbackPart)} · ${fallbackPart}` : "正在查询词性和更多释义…";
+
+    if (!word || !window.OnlineDictionary?.isSupportedQuery(word.english)) {
+      if (!fallbackPart) status.textContent = "词性暂未收录";
+      return;
+    }
+
+    flashcardDictionaryController = new AbortController();
+    try {
+      const result = await window.OnlineDictionary.lookup(word.english, {
+        signal: flashcardDictionaryController.signal
+      });
+      if (sequence !== flashcardDictionarySequence || getCurrentWord()?.id !== word.id) return;
+      const displayedMeanings = result.meanings?.length ? result.meanings : (fallbackPart ? [{
+        partOfSpeech: fallbackPart,
+        definitions: [{ chinese: word.chinese || result.translation, definition: "", example: "" }]
+      }] : []);
+      const markup = lexicalMeaningsMarkup(displayedMeanings, "flashcard");
+      if (markup) {
+        meanings.innerHTML = markup;
+        meanings.hidden = false;
+        chinese.textContent = word.chinese || result.translation || "—";
+        chinese.hidden = false;
+        back.classList.add("has-lexical-meanings");
+        status.textContent = result.fromCache ? "词性与释义 · 已缓存" : "词性与释义";
+      } else {
+        chinese.textContent = result.translation || word.chinese;
+        status.textContent = fallbackPart ? `${partOfSpeechLabel(fallbackPart)} · ${fallbackPart}` : "词性暂未收录";
+      }
+    } catch (error) {
+      if (error?.name === "AbortError" || sequence !== flashcardDictionarySequence) return;
+      status.textContent = fallbackPart
+        ? `${partOfSpeechLabel(fallbackPart)} · ${fallbackPart}`
+        : "在线词性暂时不可用";
+    }
   }
 
   function renderOnlineDictionaryResult(result) {
@@ -521,20 +623,9 @@
     const translation = result.translation
       ? `<p class="dictionary-translation"><span>中文直译</span><strong>${escapeHTML(result.translation)}</strong></p>`
       : '<p class="dictionary-translation dictionary-muted">在线翻译暂未返回中文结果</p>';
-    const meanings = result.meanings.length
-      ? result.meanings.map((meaning) => `
-          <section class="dictionary-meaning">
-            <h3><span>${escapeHTML(partOfSpeechLabel(meaning.partOfSpeech))}</span>${escapeHTML(meaning.partOfSpeech)}</h3>
-            <ol>
-              ${meaning.definitions.map((definition) => `
-                <li>
-                  <p>${escapeHTML(definition.definition)}</p>
-                  ${definition.example ? `<blockquote>${escapeHTML(definition.example)}</blockquote>` : ""}
-                </li>
-              `).join("")}
-            </ol>
-          </section>
-        `).join("")
+    const meaningsMarkup = lexicalMeaningsMarkup(result.meanings, "dictionary");
+    const meanings = meaningsMarkup
+      ? meaningsMarkup
       : '<p class="dictionary-muted dictionary-no-definition">暂未返回英文词典释义，但仍可查看中文直译和朗读。</p>';
 
     $("#online-dictionary-content").innerHTML = `
@@ -798,11 +889,19 @@
     cardControls.forEach((button) => { button.disabled = !word; });
 
     if (!word) {
+      flashcardDictionarySequence += 1;
+      flashcardDictionaryController?.abort();
+      flashcardDictionaryController = null;
       $("#deck-progress").textContent = t("cards.none");
       $("#card-context").textContent = "";
       $("#card-english").textContent = t("cards.noContent");
       $("#card-ipa").textContent = "";
       $("#card-chinese").textContent = "—";
+      $("#card-chinese").hidden = false;
+      $("#card-meanings").hidden = true;
+      $("#card-meanings").replaceChildren();
+      $(".flashcard-back").classList.remove("has-lexical-meanings");
+      $("#card-lexical-status").textContent = "";
       $$('[data-card-status]').forEach((button) => button.setAttribute("aria-pressed", "false"));
       $("[data-card-favorite]").setAttribute("aria-pressed", "false");
       $("[data-card-favorite]").textContent = t("favorites.add");
@@ -815,6 +914,7 @@
     $("#card-english").textContent = word.english;
     $("#card-ipa").textContent = word.ipa;
     $("#card-chinese").textContent = word.chinese;
+    renderFlashcardDictionary(word);
     setCardFlipped(false);
     updateCardStatus();
     if (!$("[data-view='flashcards']").hidden) renderCardImage(word);
@@ -1370,6 +1470,9 @@
   function closeWordPopover(restoreFocus) {
     const popover = $("#word-popover");
     if (popover.hidden) return;
+    wordPopoverSequence += 1;
+    wordPopoverController?.abort();
+    wordPopoverController = null;
     popover.hidden = true;
     $("#popover-scrim").hidden = true;
     activePopoverWord = null;
@@ -1377,26 +1480,84 @@
     activeWordTrigger = null;
   }
 
-  function openWordPopover(trigger) {
+  async function openWordPopover(trigger) {
+    const sequence = ++wordPopoverSequence;
+    wordPopoverController?.abort();
+    wordPopoverController = null;
     const details = getWordDetails(trigger.dataset.word);
     const sentenceCard = trigger.closest(".sentence-card");
     const sentenceTranslation = sentenceCard?.querySelector(".translation")?.textContent.trim();
     activeWordTrigger = trigger;
     activePopoverWord = {
       ...details,
-      meaning: !details.isVocabulary && sentenceTranslation
-        ? `句子翻译：${sentenceTranslation}`
-        : details.meaning,
+      sentenceTranslation,
       lessonId: trigger.dataset.lessonId
     };
 
     $("#word-popover-title").textContent = activePopoverWord.word;
     $("#word-popover-ipa").textContent = activePopoverWord.ipa;
-    $("#word-popover-meaning").textContent = activePopoverWord.meaning;
+    $("#word-popover-status").textContent = "正在查询词性和中文释义…";
+    $("#word-popover-senses").innerHTML = `
+      <div class="popover-dictionary-loading" role="status"><span aria-hidden="true"></span>正在查询多个词性和义项</div>
+    `;
+    $("#word-popover-meaning").textContent = details.isVocabulary ? `课程释义：${details.meaning}` : "";
+    $("#word-popover-meaning").hidden = !details.isVocabulary;
+    $("#word-popover-context").textContent = sentenceTranslation ? `句子翻译：${sentenceTranslation}` : "";
+    $("#word-popover-context").hidden = !sentenceTranslation;
     $("#word-popover").hidden = false;
     $("#popover-scrim").hidden = false;
     positionWordPopover(trigger);
     recordLessonActivity(activePopoverWord.lessonId);
+
+    if (!window.OnlineDictionary?.isSupportedQuery(details.word)) {
+      const fallbackPart = /\s/.test(details.word) ? "phrase" : "";
+      $("#word-popover-status").textContent = fallbackPart
+        ? `${partOfSpeechLabel(fallbackPart)} · ${fallbackPart}`
+        : "词性暂未收录";
+      $("#word-popover-senses").innerHTML = fallbackPart ? lexicalMeaningsMarkup([{
+        partOfSpeech: fallbackPart,
+        definitions: [{ chinese: details.meaning, definition: "", example: "" }]
+      }], "popover") : '<p class="popover-dictionary-error">这个词暂时没有可用的词性资料。</p>';
+      positionWordPopover(trigger);
+      return;
+    }
+
+    wordPopoverController = new AbortController();
+    try {
+      const result = await window.OnlineDictionary.lookup(details.word, {
+        signal: wordPopoverController.signal
+      });
+      if (sequence !== wordPopoverSequence || $("#word-popover").hidden) return;
+      const fallbackPart = fallbackPartOfSpeech({ english: details.word, chinese: details.meaning });
+      const displayedMeanings = result.meanings?.length ? result.meanings : (fallbackPart ? [{
+        partOfSpeech: fallbackPart,
+        definitions: [{ chinese: details.isVocabulary ? details.meaning : result.translation, definition: "", example: "" }]
+      }] : []);
+      const meaningsMarkup = lexicalMeaningsMarkup(displayedMeanings, "popover");
+      $("#word-popover-title").textContent = result.word || details.word;
+      $("#word-popover-ipa").textContent = result.phonetics[0] || details.ipa;
+      $("#word-popover-status").textContent = result.meanings?.length
+        ? (result.fromCache ? "词性与释义 · 已缓存" : "词性与释义")
+        : (fallbackPart ? `${partOfSpeechLabel(fallbackPart)} · ${fallbackPart}` : "词性暂未收录");
+      $("#word-popover-senses").innerHTML = meaningsMarkup
+        || '<p class="popover-dictionary-error">在线词典暂未提供分词性释义。</p>';
+      if (!details.isVocabulary && result.translation) {
+        $("#word-popover-meaning").textContent = `中文概括：${result.translation}`;
+        $("#word-popover-meaning").hidden = false;
+      }
+      positionWordPopover(trigger);
+    } catch (error) {
+      if (error?.name === "AbortError" || sequence !== wordPopoverSequence) return;
+      const fallbackPart = fallbackPartOfSpeech({ english: details.word, chinese: details.meaning });
+      $("#word-popover-status").textContent = fallbackPart
+        ? `${partOfSpeechLabel(fallbackPart)} · ${fallbackPart}`
+        : "在线词性暂时不可用";
+      $("#word-popover-senses").innerHTML = fallbackPart ? lexicalMeaningsMarkup([{
+        partOfSpeech: fallbackPart,
+        definitions: [{ chinese: details.meaning, definition: "", example: "" }]
+      }], "popover") : '<p class="popover-dictionary-error">请检查网络后再点一次；句子翻译仍保留在下方。</p>';
+      positionWordPopover(trigger);
+    }
   }
 
   function setupWordPopover() {

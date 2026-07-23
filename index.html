@@ -6,7 +6,7 @@
   <meta name="description" content="何鑫天下第一帅的个人英语学习网站，支持课程点读、单词搜索、单词卡与本地学习进度。">
   <meta name="color-scheme" content="light dark">
   <title>何鑫天下第一帅</title>
-  <link rel="stylesheet" href="css/style.css?v=20260723c">
+  <link rel="stylesheet" href="css/style.css?v=20260723d">
   <script src="data/lessons.js?v=20260722b" defer></script>
   <script src="js/course-privacy.js?v=20260722a" defer></script>
   <script src="js/public-content.js?v=20260722b" defer></script>
@@ -14,7 +14,7 @@
   <script src="js/account-workspace.js?v=20260722c" defer></script>
   <script src="js/storage.js?v=20260722aa" defer></script>
   <script src="js/speech.js?v=20260722l" defer></script>
-  <script src="js/dictionary.js?v=20260722a" defer></script>
+  <script src="js/dictionary.js?v=20260723d" defer></script>
   <script src="js/images.js?v=20260722q" defer></script>
   <script src="js/importer.js?v=20260722s" defer></script>
   <script src="js/i18n.js?v=20260723b" defer></script>
@@ -27,7 +27,7 @@
   <script src="js/lesson-editor.js?v=20260723b" defer></script>
   <script src="js/exporter.js?v=20260722j" defer></script>
   <script src="js/spelling.js?v=20260722ai" defer></script>
-  <script src="js/app.js?v=20260723b" defer></script>
+  <script src="js/app.js?v=20260723d" defer></script>
 </head>
 <body>
   <div class="weather-atmosphere" id="weather-atmosphere" aria-hidden="true" hidden></div>
@@ -395,6 +395,8 @@
           <span class="flashcard-face flashcard-back" aria-hidden="true">
             <span class="card-context">中文释义</span>
             <strong id="card-chinese">—</strong>
+            <div class="flashcard-meanings" id="card-meanings" hidden></div>
+            <span class="card-lexical-status" id="card-lexical-status" role="status" aria-live="polite"></span>
             <span class="flip-hint">点击返回英文</span>
           </span>
         </button>
@@ -620,7 +622,10 @@
     <span class="popover-kicker">WORD</span>
     <h2 id="word-popover-title" lang="en">word</h2>
     <p class="popover-ipa" id="word-popover-ipa"></p>
+    <p class="popover-dictionary-status" id="word-popover-status" role="status" aria-live="polite"></p>
+    <div class="popover-senses" id="word-popover-senses"></div>
     <p class="popover-meaning translation" id="word-popover-meaning"></p>
+    <p class="popover-context translation" id="word-popover-context" hidden></p>
     <div class="popover-actions" aria-label="选择单词发音">
       <button type="button" id="word-speak-us">美式朗读 <span lang="en">US</span></button>
       <button type="button" id="word-speak-uk">英式朗读 <span lang="en">UK</span></button>

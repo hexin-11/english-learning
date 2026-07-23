@@ -1,9 +1,13 @@
 (function () {
   "use strict";
 
-  const CACHE_KEY = "hexin-english-dictionary-cache:v1";
+  const CACHE_KEY = "hexin-english-dictionary-cache:v2";
   const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
   const MAX_CACHE_ITEMS = 80;
+  const MAX_PARTS_OF_SPEECH = 6;
+  const MAX_DEFINITIONS_PER_PART = 5;
+  const TRANSLATION_SEPARATOR = " ||| ";
+  const MAX_TRANSLATION_CHARS = 450;
 
   function normalizeQuery(value) {
     return String(value || "")
@@ -77,19 +81,29 @@
       return value.startsWith("/") || value.startsWith("[") ? value : `/${value}/`;
     }).filter(Boolean))].slice(0, 3);
 
-    const meanings = (Array.isArray(entry.meanings) ? entry.meanings : [])
-      .slice(0, 4)
-      .map((meaning) => ({
-        partOfSpeech: String(meaning.partOfSpeech || "meaning"),
-        definitions: (Array.isArray(meaning.definitions) ? meaning.definitions : [])
-          .slice(0, 2)
-          .map((definition) => ({
-            definition: String(definition.definition || "").trim(),
-            example: String(definition.example || "").trim()
-          }))
-          .filter((definition) => definition.definition)
-      }))
-      .filter((meaning) => meaning.definitions.length);
+    const groupedMeanings = new Map();
+    (Array.isArray(entry.meanings) ? entry.meanings : []).forEach((meaning) => {
+      const partOfSpeech = String(meaning.partOfSpeech || "meaning").trim().toLocaleLowerCase("en");
+      if (!groupedMeanings.has(partOfSpeech) && groupedMeanings.size >= MAX_PARTS_OF_SPEECH) return;
+      const current = groupedMeanings.get(partOfSpeech) || [];
+      const seenDefinitions = new Set(current.map((item) => item.definition.toLocaleLowerCase("en")));
+      (Array.isArray(meaning.definitions) ? meaning.definitions : []).forEach((definition) => {
+        const definitionText = String(definition.definition || "").trim();
+        const normalized = definitionText.toLocaleLowerCase("en");
+        if (!definitionText || seenDefinitions.has(normalized) || current.length >= MAX_DEFINITIONS_PER_PART) return;
+        seenDefinitions.add(normalized);
+        current.push({
+          definition: definitionText,
+          chinese: "",
+          example: String(definition.example || "").trim()
+        });
+      });
+      if (current.length) groupedMeanings.set(partOfSpeech, current);
+    });
+    const meanings = [...groupedMeanings].map(([partOfSpeech, definitions]) => ({
+      partOfSpeech,
+      definitions
+    }));
 
     return {
       word: String(entry.word || fallbackWord),
@@ -108,6 +122,62 @@
       .trim();
     if (!translated || normalizeQuery(translated) === normalizeQuery(query)) return "";
     return translated;
+  }
+
+  function translationChunks(meanings) {
+    const definitions = meanings.flatMap((meaning, meaningIndex) => {
+      return meaning.definitions.map((definition, definitionIndex) => ({
+        meaningIndex,
+        definitionIndex,
+        text: definition.definition
+      }));
+    });
+    const chunks = [];
+    definitions.forEach((definition) => {
+      const current = chunks.at(-1);
+      const nextLength = (current?.length ? current.reduce((total, item) => total + item.text.length, 0) + TRANSLATION_SEPARATOR.length * current.length : 0)
+        + definition.text.length;
+      if (!current || nextLength > MAX_TRANSLATION_CHARS) chunks.push([definition]);
+      else current.push(definition);
+    });
+    return chunks;
+  }
+
+  async function attachChineseDefinitions(meanings, signal) {
+    if (!meanings.length) return meanings;
+    const translatedMeanings = meanings.map((meaning) => ({
+      ...meaning,
+      definitions: meaning.definitions.map((definition) => ({ ...definition }))
+    }));
+    const chunks = translationChunks(translatedMeanings);
+    await Promise.allSettled(chunks.map(async (chunk) => {
+      try {
+        const joined = chunk.map((item) => item.text).join(TRANSLATION_SEPARATOR);
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(joined)}&langpair=en%7Czh-CN`;
+        const payload = await fetchJSON(url, signal);
+        const translated = parseTranslation(payload, joined);
+        const parts = translated.split(/\s*\|\|\|\s*/).map((item) => item.trim()).filter(Boolean);
+        if (parts.length === chunk.length) {
+          chunk.forEach((item, index) => {
+            translatedMeanings[item.meaningIndex].definitions[item.definitionIndex].chinese = parts[index];
+          });
+          return;
+        }
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+      }
+
+      await Promise.allSettled(chunk.map(async (item) => {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(item.text)}&langpair=en%7Czh-CN`;
+        const payload = await fetchJSON(url, signal);
+        translatedMeanings[item.meaningIndex].definitions[item.definitionIndex].chinese = parseTranslation(payload, item.text);
+      }));
+    }));
+    if (signal?.aborted) {
+      const error = new DOMException("The request was aborted", "AbortError");
+      throw error;
+    }
+    return translatedMeanings;
   }
 
   async function lookup(value, options) {
@@ -151,12 +221,15 @@
       throw error;
     }
 
+    const meanings = dictionary?.meanings?.length
+      ? await attachChineseDefinitions(dictionary.meanings, signal)
+      : [];
     const result = {
       query,
       word: dictionary?.word || query,
       phonetics: dictionary?.phonetics || [],
       translation,
-      meanings: dictionary?.meanings || []
+      meanings
     };
 
     setCached(query, result);
