@@ -18,6 +18,7 @@
     "hexin-english-imported-lessons:v1",
     "hexin-lesson-edits:v1",
     "hexin-xiaohe-chat:v1",
+    "hexin-xiaohe-memory:v1",
     "hexin-profile:v1",
     "hexin-spelling-preferences:v1",
     "hexin-word-image-choices:v2"

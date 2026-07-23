@@ -4,6 +4,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "js", "account-workspace.js"), "utf8");
+assert.match(source, /"hexin-xiaohe-memory:v1"/);
 
 function createWorkspace(initialEntries = {}) {
   const values = new Map(Object.entries(initialEntries));

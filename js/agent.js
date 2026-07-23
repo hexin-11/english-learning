@@ -58,7 +58,7 @@
       noBackend: "小何的后端还没有连接。你可以先在本地启动后端，或为线上网站配置 HTTPS 后端地址。",
       failed: "小何暂时没有听清，请稍后重试。",
       timeout: "小何想得有点久，请再试一次。",
-      localHistory: "对话记录仅保存在当前浏览器"
+      localHistory: "登录后对话与学习记忆会自动同步"
     },
     en: {
       open: "Chat with Xiao He",
@@ -103,7 +103,7 @@
       noBackend: "Xiao He's backend is not connected. Start it locally or configure an HTTPS backend for the live site.",
       failed: "Xiao He could not answer just now. Please try again.",
       timeout: "Xiao He took too long to think. Please try again.",
-      localHistory: "Chat history is saved only in this browser"
+      localHistory: "Sign in to sync chats and learning memory"
     },
     ko: {
       open: "샤오허와 대화",
@@ -148,7 +148,7 @@
       noBackend: "샤오허 백엔드가 연결되지 않았습니다. 로컬 백엔드를 시작하거나 온라인용 HTTPS 주소를 설정하세요.",
       failed: "지금은 답변할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       timeout: "생각하는 시간이 길어졌어요. 다시 시도해 주세요.",
-      localHistory: "대화 기록은 현재 브라우저에만 저장됩니다"
+      localHistory: "로그인하면 대화와 학습 기억이 동기화됩니다"
     },
     ja: {
       open: "シャオホーと話す",
@@ -193,7 +193,7 @@
       noBackend: "バックエンドに接続できません。ローカルで起動するか、公開サイト用のHTTPS URLを設定してください。",
       failed: "今は回答できませんでした。もう一度お試しください。",
       timeout: "考えるのに時間がかかりました。もう一度お試しください。",
-      localHistory: "会話履歴はこのブラウザにのみ保存されます"
+      localHistory: "ログインすると会話と学習記憶が同期されます"
     }
   };
 
@@ -709,7 +709,7 @@
           message,
           history: history.slice(-MAX_SENT_HISTORY).map((item) => ({ role: item.role, content: item.content })),
           image: attachment ? { mimeType: attachment.mimeType, data: attachment.data } : null,
-          context: window.XiaoHeTools?.context?.() || {},
+          context: window.XiaoHeTools?.context?.(message) || {},
           trace: Array.isArray(trace) ? trace : []
         }),
         signal: controller.signal
@@ -806,6 +806,7 @@
     if (!message || state.busy || state.processingImage) return;
 
     const previous = state.messages.slice(-MAX_SENT_HISTORY);
+    window.XiaoHeMemory?.observeUserMessage?.(message);
     state.messages.push({ role: "user", content: message, imagePreview: attachment?.preview || "" });
     saveHistory();
     renderHistory();
@@ -846,6 +847,10 @@
       }
       list.querySelector("[data-agent-typing]")?.remove();
       state.messages.push({ role: "assistant", content: reply });
+      if (trace.length) {
+        const traceSucceeded = trace.every((round) => (round.results || []).every((entry) => entry.result?.ok !== false));
+        window.XiaoHeMemory?.recordTask?.(message, reply, traceSucceeded);
+      }
       saveHistory();
       list.append(messageElement("assistant", reply, false));
       setStatus("online");

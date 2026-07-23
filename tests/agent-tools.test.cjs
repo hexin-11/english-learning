@@ -72,6 +72,7 @@ const window = {
     }
   },
   CloudAuth: { getState: () => ({ user: null }) },
+  XiaoHeMemory: { context: () => ({ preferences: ["美式发音"], goals: [], facts: [], recentTasks: [] }) },
   CourseExporter: { exportPdf: async () => {}, exportWord: () => {} },
   location: { hash: "#lessons" }
 };
@@ -83,6 +84,10 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.equal(context.overview.lessons, 1);
   assert.equal(context.overview.words, 1);
   assert.equal(context.lessonIndex[0].title, "第一课");
+  assert.equal(context.memory.preferences[0], "美式发音");
+  const relevantContext = window.XiaoHeTools.context("hello 怎么读");
+  assert.equal(relevantContext.relevantLessons[0].title, "第一课");
+  assert.equal(relevantContext.relevantLessons[0].words[0].english, "hello");
 
   const search = await window.XiaoHeTools.execute({ name: "search_course", args: { query: "你好" } });
   assert.equal(search.ok, true);

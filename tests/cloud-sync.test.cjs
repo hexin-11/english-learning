@@ -5,6 +5,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "js", "sync-core.js"), "utf8");
 const integrationSource = fs.readFileSync(path.join(__dirname, "..", "js", "cloud-sync.js"), "utf8");
+assert.match(integrationSource, /"hexin-xiaohe-memory:v1"/);
 const sandbox = { window: {} };
 vm.runInNewContext(source, sandbox, { filename: "sync-core.js" });
 

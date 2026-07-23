@@ -139,9 +139,56 @@
     };
   }
 
-  function context() {
+  function queryTerms(value) {
+    const normalized = cleanText(value, 1000).toLocaleLowerCase("en");
+    return [...new Set(normalized.match(/[a-z][a-z'\u2019-]{1,}|[\u3400-\u9fff]{2,}/g) || [])].slice(0, 20);
+  }
+
+  function relevantLessons(query) {
+    const normalized = cleanText(query, 1000).toLocaleLowerCase("en");
+    const terms = queryTerms(normalized);
+    if (!terms.length) return [];
+    return lessons().map((lesson) => {
+      const title = String(lesson.title || "").toLocaleLowerCase("en");
+      const words = lesson.words || [];
+      const sentences = lesson.sentences || [];
+      let score = title && normalized.includes(title) ? 20 : 0;
+      for (const term of terms) {
+        if (title.includes(term)) score += 10;
+        for (const word of words) {
+          const english = String(word.english || "").toLocaleLowerCase("en");
+          const chinese = String(word.chinese || "").toLocaleLowerCase("en");
+          if (english === term) score += 16;
+          else if (english.includes(term) || chinese.includes(term)) score += 5;
+        }
+        for (const sentence of sentences) {
+          if (String(sentence.english || "").toLocaleLowerCase("en").includes(term)
+            || String(sentence.chinese || "").toLocaleLowerCase("en").includes(term)) score += 2;
+        }
+      }
+      return { lesson, score };
+    }).filter((item) => item.score > 0)
+      .sort((left, right) => right.score - left.score || Number(left.lesson.number) - Number(right.lesson.number))
+      .slice(0, 5)
+      .map(({ lesson, score }) => ({
+        ...lessonSummary(lesson),
+        relevanceScore: score,
+        words: (lesson.words || []).filter((word) => terms.some((term) => {
+          return String(word.english || "").toLocaleLowerCase("en").includes(term)
+            || String(word.chinese || "").toLocaleLowerCase("en").includes(term);
+        })).slice(0, 20).map((word) => ({ english: word.english, ipa: word.ipa, chinese: word.chinese })),
+        sentences: (lesson.sentences || []).filter((sentence) => terms.some((term) => {
+          return String(sentence.english || "").toLocaleLowerCase("en").includes(term)
+            || String(sentence.chinese || "").toLocaleLowerCase("en").includes(term);
+        })).slice(0, 8).map((sentence) => ({ english: sentence.english, chinese: sentence.chinese }))
+      }));
+  }
+
+  function context(query) {
     return {
       overview: learningOverview(),
+      memory: window.XiaoHeMemory?.context?.() || {},
+      relevantLessons: relevantLessons(query),
       lessonIndex: lessons().map(lessonSummary).slice(0, 60)
     };
   }
