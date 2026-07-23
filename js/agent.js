@@ -50,6 +50,7 @@
       you: "我",
       typing: "小何正在想",
       working: "小何正在执行任务",
+      verifying: "小何正在核验结果",
       approval: "小何计划执行以下操作：",
       approvalQuestion: "\n\n是否允许执行？",
       denied: "你没有授权这项操作，我没有修改任何数据。",
@@ -94,6 +95,7 @@
       you: "Me",
       typing: "Xiao He is thinking",
       working: "Xiao He is running the task",
+      verifying: "Xiao He is verifying the result",
       approval: "Xiao He plans to perform these actions:",
       approvalQuestion: "\n\nAllow these actions?",
       denied: "You did not approve the action, so no data was changed.",
@@ -138,6 +140,7 @@
       you: "나",
       typing: "샤오허가 생각 중",
       working: "샤오허가 작업을 실행 중",
+      verifying: "샤오허가 결과를 확인 중",
       approval: "샤오허가 다음 작업을 실행하려고 합니다:",
       approvalQuestion: "\n\n실행을 허용할까요?",
       denied: "작업이 승인되지 않아 데이터를 변경하지 않았습니다.",
@@ -182,6 +185,7 @@
       you: "私",
       typing: "考えています",
       working: "タスクを実行しています",
+      verifying: "結果を確認しています",
       approval: "次の操作を実行します:",
       approvalQuestion: "\n\n実行を許可しますか？",
       denied: "許可されなかったため、データは変更していません。",
@@ -770,6 +774,12 @@
         result = needsApproval && !approved
           ? { ok: false, error: "USER_DENIED", message: text("denied") }
           : await window.XiaoHeTools.execute(call);
+        if (needsApproval && result?.ok && window.XiaoHeTools?.verify) {
+          updateTypingStatus(`${text("verifying")} · ${window.XiaoHeTools.describe(call)}`);
+          const verification = await window.XiaoHeTools.verify(call, result);
+          result = { ...result, verification };
+          if (!verification?.verified) result = { ...result, ok: false, error: "ACTION_NOT_VERIFIED" };
+        }
         if (needsApproval && result?.ok) completedMutations?.set(key, result);
       }
       results.push({ id: call.id || "", name: call.name, result });

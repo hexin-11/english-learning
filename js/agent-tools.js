@@ -279,21 +279,22 @@
       const saved = (state.dictionaryFavorites || []).find((item) => item.id === favoriteId);
       if (action === "unfavorite") {
         if (saved) window.LearningStorage.toggleDictionaryFavorite(saved);
-        return { ok: true, word: saved?.english || query, action, source: "online_dictionary" };
+      return { ok: true, word: saved?.english || query, wordId: favoriteId, action, source: "online_dictionary" };
       }
       if (action === "mastered" || action === "review") {
         if (!saved) return { ok: false, error: "WORD_NOT_SAVED" };
         const statusList = action === "mastered" ? state.mastered : state.review;
         if (!statusList?.includes(saved.id)) window.LearningStorage.setWordStatus(saved.id, action);
-        return { ok: true, word: saved.english, ipa: saved.ipa, chinese: saved.chinese, action, source: "online_dictionary" };
+        return { ok: true, word: saved.english, wordId: saved.id, ipa: saved.ipa, chinese: saved.chinese, action, source: "online_dictionary" };
       }
       if (action !== "favorite") return { ok: false, error: "INVALID_ACTION" };
-      if (saved) return { ok: true, ...saved, word: saved.english, action, source: "online_dictionary", alreadySaved: true };
+      if (saved) return { ok: true, ...saved, word: saved.english, wordId: saved.id, action, source: "online_dictionary", alreadySaved: true };
       const lookup = await lookupDictionaryWord({ word: query });
       if (!lookup.ok) return lookup;
       const favorite = { english: lookup.word || query, ipa: lookup.ipa, chinese: lookup.chinese };
       window.LearningStorage?.toggleDictionaryFavorite?.(favorite);
-      return { ok: true, word: favorite.english, ipa: favorite.ipa, chinese: favorite.chinese, action, source: "online_dictionary" };
+      const storedId = window.LearningStorage?.dictionaryFavoriteId?.(favorite.english) || favoriteId;
+      return { ok: true, word: favorite.english, wordId: storedId, ipa: favorite.ipa, chinese: favorite.chinese, action, source: "online_dictionary" };
     }
     if (action === "favorite") {
       if (!state.favorites?.includes(word.id)) window.LearningStorage.toggleFavorite(word.id);
@@ -304,7 +305,54 @@
     } else if (action === "review") {
       if (!state.review?.includes(word.id)) window.LearningStorage.setWordStatus(word.id, "review");
     } else return { ok: false, error: "INVALID_ACTION" };
-    return { ok: true, word: word.english, lesson: word.lessonTitle, action };
+    return { ok: true, word: word.english, wordId: word.id, lesson: word.lessonTitle, action, source: "course" };
+  }
+
+  function includesEnglish(items, value) {
+    const query = normalizeEnglish(value);
+    return (Array.isArray(items) ? items : []).some((item) => normalizeEnglish(item?.english) === query);
+  }
+
+  async function verify(call, result) {
+    if (!result?.ok) return { verified: false, check: "tool_failed" };
+    const args = call?.args || {};
+    if (call?.name === "create_lesson") {
+      const lesson = findLesson(result.lesson?.id || result.lesson?.title || args.title);
+      return { verified: Boolean(lesson), check: "lesson_exists" };
+    }
+    if (call?.name === "edit_lesson") {
+      const lesson = findLesson(result.lesson?.id || args.lesson);
+      let verified = Boolean(lesson);
+      if (verified && result.operation === "rename") verified = cleanText(lesson.title, 180) === cleanText(args.title, 180);
+      if (verified && result.operation === "add_word") verified = includesEnglish(lesson.words, result.item?.english || args.english);
+      if (verified && result.operation === "add_sentence") {
+        verified = (lesson.sentences || []).some((item) => cleanText(item.english, 1200) === cleanText(result.item?.english || args.english, 1200));
+      }
+      return { verified, check: `lesson_${result.operation || "updated"}` };
+    }
+    if (call?.name === "delete_lesson") {
+      return { verified: !findLesson(result.deleted?.id || args.lesson), check: "lesson_absent" };
+    }
+    if (call?.name === "update_word_state") {
+      const state = window.LearningStorage?.getState?.() || {};
+      const id = result.wordId;
+      const dictionarySaved = (state.dictionaryFavorites || []).some((item) => item.id === id);
+      const courseSaved = (state.favorites || []).includes(id);
+      const checks = {
+        favorite: result.source === "online_dictionary" ? dictionarySaved : courseSaved,
+        unfavorite: result.source === "online_dictionary" ? !dictionarySaved : !courseSaved,
+        mastered: (state.mastered || []).includes(id),
+        review: (state.review || []).includes(id)
+      };
+      return { verified: checks[result.action] === true, check: `word_${result.action || "updated"}` };
+    }
+    if (call?.name === "navigate_to_page") {
+      return { verified: window.location.hash.replace(/^#/, "") === result.page, check: "page_opened" };
+    }
+    if (call?.name === "export_lesson" || call?.name === "create_presentation") {
+      return { verified: true, check: "download_started" };
+    }
+    return { verified: true, check: "read_completed" };
   }
 
   function matchDirectCommand(message) {
@@ -465,6 +513,7 @@
       WORD_NOT_SAVED: "这个在线词典单词还没有收藏，请先收藏后再标记学习状态。",
       DICTIONARY_UNAVAILABLE: "在线词典暂时不可用，请刷新页面后重试。",
       DICTIONARY_LOOKUP_FAILED: "在线词典没有找到这个单词，请检查拼写后重试。",
+      ACTION_NOT_VERIFIED: "操作已经尝试执行，但核验没有通过，我没有把它当作成功。请刷新数据后重试。",
       IMPORTER_UNAVAILABLE: "课程保存功能暂时不可用，请刷新页面后重试。",
       TOOLS_UNAVAILABLE: "网页工具暂时不可用，请刷新页面后重试。"
     };
@@ -567,6 +616,7 @@
   window.XiaoHeTools = Object.freeze({
     context,
     execute,
+    verify,
     describe,
     summarizeTrace,
     matchDirectCommand,

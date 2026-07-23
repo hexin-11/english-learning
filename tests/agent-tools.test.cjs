@@ -102,6 +102,9 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.equal(favorite.ok, true);
   assert.equal(favorite.source, "online_dictionary");
   assert.equal(dictionaryFavorites[0].english, "intimidate");
+  const favoriteVerification = await window.XiaoHeTools.verify(directFavorite[0], favorite);
+  assert.equal(favoriteVerification.verified, true);
+  assert.equal(favoriteVerification.check, "word_favorite");
   assert.match(window.XiaoHeTools.summarizeTrace([{
     calls: directFavorite,
     results: [{ name: "update_word_state", result: favorite }]
@@ -114,6 +117,8 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.match(agentSource, /XiaoHeTools\?\.summarizeTrace\?\.\(trace\)/);
   assert.match(agentSource, /completedMutations\.get\(key\)/);
   assert.match(agentSource, /matchDirectCommand/);
+  assert.match(agentSource, /XiaoHeTools\.verify\(call, result\)/);
+  assert.match(agentSource, /ACTION_NOT_VERIFIED/);
 
   const created = await window.XiaoHeTools.execute({
     name: "create_lesson",
@@ -130,6 +135,7 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.equal(prepended[0], savedLessons[0].id);
   assert.equal(window.XiaoHeTools.takeReloadRequest(), true);
   assert.equal(window.XiaoHeTools.takeReloadRequest(), false);
+  assert.equal((await window.XiaoHeTools.verify({ name: "create_lesson", args: { title: "旅行英语" } }, created)).verified, true);
 
   const createSummary = window.XiaoHeTools.summarizeTrace([{
     calls: [{ name: "create_lesson", args: { title: "抖音中学习英语" } }],
