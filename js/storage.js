@@ -15,6 +15,7 @@
       rate: 0.8,
       weather: "clear",
       hideChinese: false,
+      hideEnglish: false,
       appearanceVersion: APPEARANCE_VERSION
     }
   };
@@ -48,6 +49,7 @@
         rate: Number.isFinite(rate) && rate >= 0.5 && rate <= 1.3 ? rate : 0.8,
         weather: settings.weather === "rain" || settings.weather === "snow" ? settings.weather : "clear",
         hideChinese: Boolean(settings.hideChinese),
+        hideEnglish: Boolean(settings.hideEnglish),
         appearanceVersion: currentAppearance ? APPEARANCE_VERSION : 0
       }
     };

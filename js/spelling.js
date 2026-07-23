@@ -17,6 +17,27 @@
     }
   };
 
+  Object.assign(copy.zh, {
+    wrongFeedback: "回答错误，正确答案如下。已加入错题库，稍后会再次出现。",
+    skippedFeedback: "已显示正确答案，并加入错题库，稍后会再次出现。",
+    mistakeBank: "错题库"
+  });
+  Object.assign(copy.en, {
+    wrongFeedback: "Incorrect. The correct answer is below. Added to your review list and it will return later.",
+    skippedFeedback: "The answer is shown and added to your review list. It will return later.",
+    mistakeBank: "Review list"
+  });
+  Object.assign(copy.ko, {
+    wrongFeedback: "틀렸습니다. 아래 정답을 확인하세요. 오답 목록에 추가되어 나중에 다시 나옵니다.",
+    skippedFeedback: "정답을 표시하고 오답 목록에 추가했습니다. 나중에 다시 나옵니다.",
+    mistakeBank: "오답 목록"
+  });
+  Object.assign(copy.ja, {
+    wrongFeedback: "不正解です。下の正解を確認してください。復習リストに追加され、後でもう一度出題されます。",
+    skippedFeedback: "正解を表示し、復習リストに追加しました。後でもう一度出題されます。",
+    mistakeBank: "復習リスト"
+  });
+
   const publicLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
   const ownerLessons = window.CoursePrivacy?.ownerLessonsForActiveAccount?.() || [];
   const baseLessons = [...publicLessons, ...ownerLessons];
@@ -31,6 +52,7 @@
   let answered = false;
   let attemptedCurrent = false;
   let stats = { attempted: 0, correct: 0, streak: 0 };
+  let mistakes = { word: new Set(), sentence: new Set() };
 
   function locale() {
     const current = window.SiteI18n?.current?.() || "zh";
@@ -51,15 +73,27 @@
       const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
       mode = parsed.mode === "sentence" ? "sentence" : "word";
       lessonFilter = typeof parsed.lessonFilter === "string" ? parsed.lessonFilter : "all";
+      mistakes = {
+        word: new Set(Array.isArray(parsed.mistakes?.word) ? parsed.mistakes.word.filter((id) => typeof id === "string") : []),
+        sentence: new Set(Array.isArray(parsed.mistakes?.sentence) ? parsed.mistakes.sentence.filter((id) => typeof id === "string") : [])
+      };
     } catch (_error) {
       mode = "word";
       lessonFilter = "all";
+      mistakes = { word: new Set(), sentence: new Set() };
     }
   }
 
   function savePreferences() {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, lessonFilter }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        mode,
+        lessonFilter,
+        mistakes: {
+          word: [...mistakes.word],
+          sentence: [...mistakes.sentence]
+        }
+      }));
       window.dispatchEvent(new CustomEvent("hexin:data-changed", { detail: { key: STORAGE_KEY } }));
     } catch (_error) {
       // 当前页面仍可正常练习。
@@ -125,6 +159,20 @@
     return next;
   }
 
+  function buildReviewQueue(baseQuestions, mistakeIds) {
+    const reviewQuestions = shuffle(baseQuestions.filter((question) => mistakeIds.has(question.id)))
+      .map((question) => ({ ...question, mistakeReview: true }));
+    return [...baseQuestions, ...reviewQuestions];
+  }
+
+  function withQueuedMistakeReview(items, currentIndex, question) {
+    if (!question || items.slice(currentIndex + 1).some((item) => item.id === question.id)) return items;
+    const next = [...items];
+    const reviewAt = Math.min(currentIndex + 4, next.length);
+    next.splice(reviewAt, 0, { ...question, mistakeReview: true });
+    return next;
+  }
+
   function normalizeAnswer(value) {
     return String(value || "")
       .normalize("NFKC")
@@ -146,6 +194,28 @@
     return questions[index] || null;
   }
 
+  function currentMistakes() {
+    return mistakes[mode];
+  }
+
+  function addMistake(question) {
+    if (!question?.id) return;
+    currentMistakes().add(question.id);
+    savePreferences();
+    renderStats();
+  }
+
+  function clearMistake(question) {
+    if (!question?.id || !currentMistakes().delete(question.id)) return;
+    questions = questions.filter((item, itemIndex) => itemIndex <= index || item.id !== question.id);
+    savePreferences();
+    renderStats();
+  }
+
+  function queueMistakeReview(question) {
+    questions = withQueuedMistakeReview(questions, index, question);
+  }
+
   function applyCopy() {
     $("#spelling-nav-label").textContent = t("nav");
     $("#spelling-title").textContent = t("title");
@@ -156,6 +226,7 @@
     $("#spelling-correct-label").textContent = t("correct");
     $("#spelling-attempted-label").textContent = t("attempted");
     $("#spelling-streak-label").textContent = t("streak");
+    $("#spelling-mistake-label").textContent = t("mistakeBank");
     $("#spelling-answer-label").textContent = t("answer");
     $("#spelling-hint").textContent = t("hint");
     $("#spelling-skip").textContent = t("skip");
@@ -188,6 +259,7 @@
     $("#spelling-correct-count").textContent = String(stats.correct);
     $("#spelling-attempted-count").textContent = String(stats.attempted);
     $("#spelling-streak-count").textContent = String(stats.streak);
+    $("#spelling-mistake-count").textContent = String(currentMistakes().size);
     const accuracy = stats.attempted ? Math.round((stats.correct / stats.attempted) * 100) : 0;
     $("#spelling-accuracy").textContent = `${accuracy}%`;
     $("#spelling-accuracy-ring").style.setProperty("--spelling-progress", `${accuracy * 3.6}deg`);
@@ -207,6 +279,11 @@
   function setAnswerValue(value) {
     $("#spelling-word-input").value = value;
     $("#spelling-sentence-input").value = value;
+  }
+
+  function setAnswerLocked(locked) {
+    $("#spelling-word-input").readOnly = Boolean(locked);
+    $("#spelling-sentence-input").readOnly = Boolean(locked);
   }
 
   function answerValue() {
@@ -233,6 +310,7 @@
     attemptedCurrent = false;
     resetFeedback();
     setAnswerValue("");
+    setAnswerLocked(false);
     $("#spelling-question-progress").textContent = t("question", { current: index + 1, total: questions.length });
     $("#spelling-question-type").textContent = t(mode === "word" ? "wordPrompt" : "sentencePrompt");
     $("#spelling-question-lesson").textContent = `${t("lesson")} ${question.lessonNumber} · ${question.lessonTitle}`;
@@ -247,7 +325,8 @@
   }
 
   function rebuildQuestions(resetSession) {
-    questions = shuffle(collectQuestions());
+    const baseQuestions = shuffle(collectQuestions());
+    questions = buildReviewQueue(baseQuestions, currentMistakes());
     index = 0;
     if (resetSession) stats = { attempted: 0, correct: 0, streak: 0 };
     document.querySelectorAll("[data-spelling-mode]").forEach((button) => {
@@ -302,18 +381,23 @@
       attemptedCurrent = true;
       stats.attempted += 1;
       if (!correct) stats.streak = 0;
-      renderStats();
     }
     if (correct) {
       stats.correct += 1;
       stats.streak += 1;
       answered = true;
+      setAnswerLocked(true);
+      clearMistake(question);
       renderStats();
       showFeedback("correct", t("correctFeedback"), question.english);
       $("#spelling-check-label").textContent = t("next");
     } else {
-      showFeedback("wrong", t("wrongFeedback"), "");
-      focusAnswer();
+      answered = true;
+      setAnswerLocked(true);
+      addMistake(question);
+      queueMistakeReview(question);
+      showFeedback("wrong", t("wrongFeedback"), question.english);
+      $("#spelling-check-label").textContent = t("next");
     }
   }
 
@@ -331,6 +415,9 @@
     }
     answered = true;
     setAnswerValue(question.english);
+    setAnswerLocked(true);
+    addMistake(question);
+    queueMistakeReview(question);
     showFeedback("skipped", t("skippedFeedback"), question.english);
     $("#spelling-check-label").textContent = t("next");
   }
@@ -388,6 +475,12 @@
     setupEvents();
     rebuildQuestions(true);
   }
+
+  window.SpellingPracticeCore = Object.freeze({
+    normalizeAnswer,
+    buildReviewQueue,
+    withQueuedMistakeReview
+  });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();

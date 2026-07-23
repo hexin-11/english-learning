@@ -514,8 +514,11 @@
 
   function applyTranslationSetting() {
     const hideChinese = Boolean(appState.settings.hideChinese);
+    const hideEnglish = Boolean(appState.settings.hideEnglish);
     $("#hide-chinese").checked = hideChinese;
+    $("#hide-english").checked = hideEnglish;
     $('[data-view="lessons"]').classList.toggle("hide-translations", hideChinese);
+    $('[data-view="lessons"]').classList.toggle("hide-english-content", hideEnglish);
   }
 
   function partOfSpeechLabel(value) {
@@ -1046,7 +1049,7 @@
     const currentAppearance = appState.settings.appearanceVersion === 4;
     const initialTheme = currentAppearance ? (appState.settings.theme || "light") : "light";
     if (!currentAppearance) {
-      appState = window.LearningStorage.updateSettings({ theme: "light", hideChinese: false, appearanceVersion: 4 });
+      appState = window.LearningStorage.updateSettings({ theme: "light", hideChinese: false, hideEnglish: false, appearanceVersion: 4 });
       applyTranslationSetting();
     }
     applyTheme(initialTheme);
@@ -1270,6 +1273,11 @@
   function setupLessonControls() {
     $("#hide-chinese").addEventListener("change", (event) => {
       appState = window.LearningStorage.updateSettings({ hideChinese: event.target.checked });
+      applyTranslationSetting();
+    });
+
+    $("#hide-english").addEventListener("change", (event) => {
+      appState = window.LearningStorage.updateSettings({ hideEnglish: event.target.checked });
       applyTranslationSetting();
     });
 

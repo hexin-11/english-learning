@@ -1395,6 +1395,14 @@ main {
   gap: 20px;
 }
 
+.lesson-visibility-controls {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 28px;
+}
+
 .switch-row {
   display: flex;
   position: relative;
@@ -2636,6 +2644,18 @@ body.lesson-is-dragging {
   display: none !important;
 }
 
+.hide-english-content .word-card .word,
+.hide-english-content .word-card .ipa,
+.hide-english-content .sentence-english,
+.hide-english-content .sentence-ipa {
+  display: none !important;
+}
+
+.hide-english-content .word-card-heading,
+.hide-english-content .sentence-heading {
+  width: auto;
+}
+
 .search-box {
   padding: 20px;
 }
@@ -3517,6 +3537,13 @@ body.lesson-is-dragging {
 .spelling-answer-form input::placeholder,
 .spelling-answer-form textarea::placeholder {
   color: var(--subtle);
+}
+
+.spelling-answer-form input[readonly],
+.spelling-answer-form textarea[readonly] {
+  background: var(--surface-soft);
+  color: var(--muted);
+  cursor: default;
 }
 
 .spelling-shortcut {
