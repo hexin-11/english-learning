@@ -281,7 +281,8 @@ export function extractToolCalls(payload) {
   });
 }
 
-export function agentToolConfig() {
+export function agentToolConfig(enabled = true) {
+  if (!enabled) return {};
   return {
     tools: [{ functionDeclarations: AGENT_FUNCTION_DECLARATIONS }],
     toolConfig: { functionCallingConfig: { mode: "AUTO" } }

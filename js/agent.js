@@ -697,7 +697,7 @@
     }
   }
 
-  async function requestReply(message, history, attachment, trace) {
+  async function requestReply(message, history, attachment, trace, finalOnly = false) {
     if (!apiBase()) throw new Error("NO_BACKEND");
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -710,7 +710,8 @@
           history: history.slice(-MAX_SENT_HISTORY).map((item) => ({ role: item.role, content: item.content })),
           image: attachment ? { mimeType: attachment.mimeType, data: attachment.data } : null,
           context: window.XiaoHeTools?.context?.(message) || {},
-          trace: Array.isArray(trace) ? trace : []
+          trace: Array.isArray(trace) ? trace : [],
+          finalOnly
         }),
         signal: controller.signal
       });
@@ -746,7 +747,7 @@
     }
   }
 
-  async function executeToolCalls(calls, completedMutations) {
+  async function executeToolCalls(calls, completedMutations, completedReads) {
     if (!window.XiaoHeTools?.execute) {
       return calls.map((call) => ({ id: call.id || "", name: call.name, result: { ok: false, error: "TOOLS_UNAVAILABLE" } }));
     }
@@ -770,6 +771,8 @@
       let result;
       if (needsApproval && completedMutations?.has(key)) {
         result = { ...completedMutations.get(key), repeatedCallSkipped: true };
+      } else if (!needsApproval && completedReads?.has(key)) {
+        result = { ...completedReads.get(key), repeatedCallSkipped: true };
       } else {
         result = needsApproval && !approved
           ? { ok: false, error: "USER_DENIED", message: text("denied") }
@@ -781,6 +784,7 @@
           if (!verification?.verified) result = { ...result, ok: false, error: "ACTION_NOT_VERIFIED" };
         }
         if (needsApproval && result?.ok) completedMutations?.set(key, result);
+        if (!needsApproval && result?.ok) completedReads?.set(key, result);
       }
       results.push({ id: call.id || "", name: call.name, result });
     }
@@ -822,11 +826,12 @@
     try {
       const trace = [];
       const completedMutations = new Map();
+      const completedReads = new Map();
       let reply = "";
       const directCalls = attachment ? [] : (window.XiaoHeTools?.matchDirectCommand?.(message) || []);
       if (directCalls.length) {
         updateTypingStatus(`${text("working")} · ${directCalls.map((call) => call.name).join("、")}`);
-        const results = await executeToolCalls(directCalls, completedMutations);
+        const results = await executeToolCalls(directCalls, completedMutations, completedReads);
         trace.push({ calls: directCalls, results });
         reply = window.XiaoHeTools?.summarizeTrace?.(trace) || "";
       } else {
@@ -837,8 +842,13 @@
             break;
           }
           updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
-          const results = await executeToolCalls(response.toolCalls, completedMutations);
+          const results = await executeToolCalls(response.toolCalls, completedMutations, completedReads);
           trace.push({ calls: response.toolCalls, results });
+        }
+        if (!reply && trace.length) {
+          updateTypingStatus(text("verifying"));
+          const finalResponse = await requestReply(message, previous, attachment, trace, true);
+          reply = cleanAssistantText(finalResponse.reply);
         }
       }
       if (!reply) {

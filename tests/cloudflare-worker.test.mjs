@@ -217,6 +217,7 @@ try {
     body: JSON.stringify({
       message: "总结第三课",
       history: [],
+      finalOnly: true,
       trace: [{
         calls: toolPayload.toolCalls,
         results: [{ id: "call-1", name: "get_lesson_detail", result: { ok: true, lesson: { wordCount: 12 } } }]
@@ -226,6 +227,8 @@ try {
   const continuation = await continuationResponse.json();
   assert.equal(continuation.reply, "第三课共有 12 个单词。");
   assert.equal(continuationBody.contents.at(-1).parts[0].functionResponse.name, "get_lesson_detail");
+  assert.equal(continuationBody.tools, undefined);
+  assert.equal(continuationBody.toolConfig, undefined);
 } finally {
   globalThis.fetch = originalFetch;
 }

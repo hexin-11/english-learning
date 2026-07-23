@@ -350,7 +350,7 @@ export function agentGenerationConfig(message, image, trace, model) {
   return { mode: task.mode, config };
 }
 
-async function createAgentReply(env, message, history, image, context, trace) {
+async function createAgentReply(env, message, history, image, context, trace, finalOnly = false) {
   const model = String(env.GEMINI_MODEL || "gemini-flash-latest").trim();
   const profile = agentGenerationConfig(message, image, trace, model);
   let useThinking = Boolean(profile.config.thinkingConfig);
@@ -368,7 +368,7 @@ async function createAgentReply(env, message, history, image, context, trace) {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: AGENT_PROMPT }] },
           contents: geminiContents(history, message, image, context, trace),
-          ...agentToolConfig(),
+          ...agentToolConfig(!finalOnly),
           generationConfig: {
             ...profile.config,
             ...(!useThinking ? { thinkingConfig: undefined } : {})
@@ -605,7 +605,8 @@ export async function handleRequest(request, env) {
     const context = cleanAgentContext(body.context);
     const trace = cleanToolTrace(body.trace);
     if (!message) return json({ error: "EMPTY_MESSAGE", message: "请输入想对小何说的话。" }, 400, cors);
-    const result = await createAgentReply(env, message, history, image, context, trace);
+    const finalOnly = body.finalOnly === true && trace.length > 0;
+    const result = await createAgentReply(env, message, history, image, context, trace, finalOnly);
     return json({
       reply: result.reply || "",
       toolCalls: result.toolCalls || [],

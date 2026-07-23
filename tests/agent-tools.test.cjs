@@ -134,6 +134,8 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.match(source, /pptx\.writeFile\(\{ fileName, compression: true \}\)/);
   assert.match(agentSource, /XiaoHeTools\?\.summarizeTrace\?\.\(trace\)/);
   assert.match(agentSource, /completedMutations\.get\(key\)/);
+  assert.match(agentSource, /completedReads\.get\(key\)/);
+  assert.match(agentSource, /requestReply\(message, previous, attachment, trace, true\)/);
   assert.match(agentSource, /matchDirectCommand/);
   assert.match(agentSource, /XiaoHeTools\.verify\(call, result\)/);
   assert.match(agentSource, /ACTION_NOT_VERIFIED/);

@@ -404,7 +404,7 @@ function localAgentGenerationConfig(message, image, trace) {
   };
 }
 
-async function createAgentReply(message, history, image, context, trace) {
+async function createAgentReply(message, history, image, context, trace, finalOnly = false) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -422,7 +422,7 @@ async function createAgentReply(message, history, image, context, trace) {
           geminiContents(history, message, image, agentTools.agentContextPart(context)),
           trace
         ),
-        ...agentTools.agentToolConfig(),
+        ...agentTools.agentToolConfig(!finalOnly),
         generationConfig: localAgentGenerationConfig(message, image, trace)
       }),
       signal: controller.signal
@@ -637,7 +637,8 @@ async function handle(req, res) {
       sendJson(res, 400, { error: "EMPTY_MESSAGE", message: "请输入想对小何说的话。" });
       return;
     }
-    const result = await createAgentReply(message, history, image, context, trace);
+    const finalOnly = body.finalOnly === true && trace.length > 0;
+    const result = await createAgentReply(message, history, image, context, trace, finalOnly);
     sendJson(res, 200, {
       reply: result.reply || "",
       toolCalls: result.toolCalls || [],
