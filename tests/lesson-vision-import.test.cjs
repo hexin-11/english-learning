@@ -58,8 +58,11 @@ assert.ok(parsed.sentences.some((sentence) => sentence.english === "Do you like 
 assert.ok(parsed.sentences.every((sentence) => sentence.english !== "IT CE | re I"));
 
 assert.match(importerSource, /\/api\/lesson-vision/);
+assert.match(importerSource, /\/api\/lesson-structure/);
+assert.match(importerSource, /正在分类并补全课程/);
+assert.match(importerSource, /补齐缺失的音标、单词释义和整句翻译/);
 assert.match(importerSource, /tessedit_pageseg_mode:\s*"6"/);
 assert.match(importerSource, /prepareOcrCanvas/);
-assert.match(indexSource, /图片会压缩后发送给小何智能识别服务/);
+assert.match(indexSource, /导入内容会发送给小何智能识别服务/);
 
 console.log("Lesson vision import tests passed.");

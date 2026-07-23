@@ -297,6 +297,29 @@
     }
   }
 
+  async function enrichLessonStructure(rawText, lesson) {
+    const base = agentApiBase();
+    if (!base) throw new Error("智能课程整理后端未连接。");
+    setStatus("正在分类并补全课程", "自动区分单词与句子，并补充缺失的音标和中文…", 92, "working");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 65000);
+    try {
+      const response = await fetch(`${base}/api/lesson-structure`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawText: safeText(rawText, 60000), lesson }),
+        signal: controller.signal
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "智能课程整理暂时不可用。");
+      const enriched = normalizeVisionLesson(payload.lesson);
+      if (!enriched.words.length && !enriched.sentences.length) throw new Error("智能课程整理没有返回有效内容。");
+      return enriched;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
   async function prepareOcrCanvas(file) {
     const image = await loadImage(file);
     const sourceWidth = image.naturalWidth || image.width;
@@ -844,6 +867,7 @@
     try {
       let structured = null;
       let detectedTitle = "";
+      let intelligentlyStructured = false;
       if (extension === "pdf") activeRawText = await extractPdf(file);
       else if (extension === "docx") activeRawText = await extractDocx(file);
       else {
@@ -851,6 +875,7 @@
         activeRawText = imageResult.rawText;
         structured = imageResult.structured;
         detectedTitle = imageResult.title;
+        intelligentlyStructured = Boolean(imageResult.structured);
       }
 
       if (!activeRawText || (activeRawText.match(/[A-Za-z\u3400-\u9fff]/g) || []).length < 3) {
@@ -858,6 +883,18 @@
       }
       setStatus("正在整理课程结构", "自动匹配词表、音标和中英句子…", 94, "working");
       structured ||= structureText(activeRawText);
+      if (!intelligentlyStructured) {
+        try {
+          const enriched = await enrichLessonStructure(activeRawText, structured);
+          structured = { words: enriched.words, sentences: enriched.sentences };
+          const suggestedTitle = safeText(enriched.title, 180);
+          if (suggestedTitle && normalizeSpaces(activeRawText).includes(suggestedTitle)) detectedTitle = suggestedTitle;
+          activeRawText = enriched.rawText || activeRawText;
+          activeWarnings.push("已自动区分单词与句子，并补齐缺失的音标、单词释义和整句翻译。");
+        } catch (_enrichmentError) {
+          activeWarnings.push("智能补全暂时不可用，已保留本地识别结果；带“待补充”的内容可在保存前修改。");
+        }
+      }
       if (!structured.words.length && !structured.sentences.length) {
         throw new Error("已读取文字，但暂时无法自动分出词表或英文句子。可尝试排版更清晰的文件。");
       }

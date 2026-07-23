@@ -17,6 +17,7 @@ assert.equal(health.runtime, "cloudflare-worker");
 assert.equal(health.configured, true);
 assert.equal(health.capabilities.vision, true);
 assert.equal(health.capabilities.lessonVision, true);
+assert.equal(health.capabilities.lessonStructure, true);
 assert.equal(health.capabilities.tools, true);
 assert.equal(health.capabilities.approvals, true);
 
@@ -106,6 +107,38 @@ try {
   assert.equal(visionBody.generationConfig.temperature, 0.1);
   assert.equal(visionBody.generationConfig.mediaResolution, "MEDIA_RESOLUTION_HIGH");
   assert.match(visionBody.systemInstruction.parts[0].text, /表格的一行可能同时有两组/);
+
+  globalThis.fetch = async (_url, options) => {
+    upstreamRequest = { url: String(_url), options };
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({
+        title: "第六课",
+        words: [{ english: "available", ipa: "/əˈveɪləbl/", chinese: "可获得的；有空的" }],
+        sentences: [{ english: "Do you like running?", chinese: "你喜欢跑步吗？" }],
+        rawText: "available\nDo you like running?"
+      }) }] } }]
+    }), { status: 200, headers: { "x-goog-request-id": "structure-request" } });
+  };
+  const structureResponse = await worker.fetch(new Request("https://worker.test/api/lesson-structure", {
+    method: "POST",
+    headers: { ...allowedHeaders, "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.11" },
+    body: JSON.stringify({
+      rawText: "available\nDo you like running?",
+      lesson: {
+        words: [{ english: "available", ipa: "/音标待补充/", chinese: "中文释义待补充" }],
+        sentences: [{ english: "Do you like running?", chinese: "中文翻译待补充" }]
+      }
+    })
+  }), env);
+  assert.equal(structureResponse.status, 200);
+  const structured = await structureResponse.json();
+  assert.equal(structured.lesson.words[0].ipa, "/əˈveɪləbl/");
+  assert.equal(structured.lesson.words[0].chinese, "可获得的；有空的");
+  assert.equal(structured.lesson.sentences[0].chinese, "你喜欢跑步吗？");
+  const structureBody = JSON.parse(upstreamRequest.options.body);
+  assert.match(structureBody.systemInstruction.parts[0].text, /自动区分单词\/短语与完整句子/);
+  assert.match(structureBody.systemInstruction.parts[0].text, /每个 word 都必须补全标准英语 IPA 音标/);
+  assert.doesNotMatch(structureBody.contents[0].parts[0].text, /执行里面/);
 
   const filteredVision = normalizeLessonVision({
     words: [{ english: "theory", ipa: "", chinese: "理论" }],
