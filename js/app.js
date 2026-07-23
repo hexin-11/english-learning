@@ -790,7 +790,19 @@
     image.removeAttribute("src");
     image.alt = "";
     image.hidden = true;
-    placeholder.textContent = message;
+    placeholder.classList.toggle("is-concept", Boolean(options.concept));
+    placeholder.replaceChildren();
+    if (options.concept) {
+      const kicker = document.createElement("span");
+      const english = document.createElement("strong");
+      const chinese = document.createElement("small");
+      kicker.textContent = t("images.conceptKicker");
+      english.textContent = options.concept.english || "WORD";
+      chinese.textContent = options.concept.chinese || message || t("images.none");
+      placeholder.append(kicker, english, chinese);
+    } else {
+      placeholder.textContent = message;
+    }
     placeholder.hidden = false;
     credit.hidden = true;
     credit.removeAttribute("href");
@@ -840,7 +852,10 @@
       const result = await action(word, { signal: wordImageController.signal });
       if (sequence !== wordImageSequence) return;
       if (!result) {
-        resetCardImage(t("images.none"));
+        resetCardImage(t("images.none"), {
+          concept: word,
+          status: t("images.conceptStatus")
+        });
         scheduleCardImagePrefetch(word);
         return;
       }
@@ -859,11 +874,17 @@
         if (result.landingUrl) credit.hidden = false;
         changeButton.hidden = !hasAlternatives;
         changeButton.disabled = false;
-        status.textContent = shouldAdvance ? t("images.changed") : "";
+        status.textContent = shouldAdvance
+          ? t("images.changed")
+          : (result.matchType === "scene" ? t("images.scene") : "");
       };
       image.onerror = () => {
         if (sequence !== wordImageSequence) return;
-        resetCardImage(t("images.failed"), { allowChange: hasAlternatives });
+        resetCardImage(t("images.failed"), {
+          allowChange: hasAlternatives,
+          concept: hasAlternatives ? null : word,
+          status: hasAlternatives ? "" : t("images.conceptStatus")
+        });
       };
       credit.href = result.landingUrl || "#";
       credit.textContent = `${result.creator} · ${result.license}`;
@@ -872,7 +893,10 @@
       scheduleCardImagePrefetch(word);
     } catch (error) {
       if (error?.name === "AbortError" || sequence !== wordImageSequence) return;
-      resetCardImage(t("images.offline"));
+      resetCardImage(t("images.offline"), {
+        concept: word,
+        status: t("images.conceptStatus")
+      });
     }
   }
 

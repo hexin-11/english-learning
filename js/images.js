@@ -2,12 +2,49 @@
   "use strict";
 
   const API_URL = "https://api.openverse.org/v1/images/";
-  const CACHE_KEY = "hexin-word-images:v4";
+  const CACHE_KEY = "hexin-word-images:v5";
   const CHOICE_KEY = "hexin-word-image-choices:v2";
   const CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
   const REQUEST_TIMEOUT = 6500;
   const MAX_CACHE_ITEMS = 160;
-  const MAX_CANDIDATES = 7;
+  const MAX_CANDIDATES = 8;
+
+  const VISUAL_SCENES = {
+    available: {
+      search: "empty chair available seat waiting room",
+      queries: ["empty chair", "available seat", "waiting room chairs"],
+      anchors: ["empty", "chair", "seat", "waiting", "room"]
+    },
+    "focus on": { search: "student focused studying desk", anchors: ["student", "studying", "desk", "focus"] },
+    seasonal: { search: "seasonal fruit farmers market", anchors: ["seasonal", "fruit", "market", "harvest"] },
+    private: { search: "private room closed door", anchors: ["private", "room", "closed", "door"] },
+    deal: { search: "business handshake agreement", anchors: ["business", "handshake", "agreement"] },
+    "concentrate on": { search: "student concentrating studying desk", anchors: ["student", "studying", "desk", "concentrating"] },
+    reputation: { search: "customer five star review service", anchors: ["customer", "review", "service", "star"] },
+    technique: { search: "hands teaching practical skill", anchors: ["hands", "teaching", "skill", "practice"] },
+    cancellation: { search: "cancelled flight airport passenger", anchors: ["cancelled", "flight", "airport", "passenger"] },
+    reasonable: { search: "fair price shopping comparison", anchors: ["fair", "price", "shopping"] },
+    inform: { search: "people sharing information conversation", anchors: ["people", "information", "conversation", "talking"] },
+    propose: { search: "business proposal meeting presentation", anchors: ["business", "proposal", "meeting", "presentation"] },
+    summarize: { search: "student writing summary notes", anchors: ["student", "writing", "summary", "notes"] },
+    noticeable: { search: "red umbrella crowd noticeable", anchors: ["red", "umbrella", "crowd"] },
+    cause: { search: "domino chain reaction", anchors: ["domino", "chain", "reaction"] },
+    quality: { search: "product quality inspection factory", anchors: ["product", "quality", "inspection", "factory"] },
+    overall: { search: "project overview team meeting", anchors: ["project", "overview", "team", "meeting"] },
+    concern: { search: "worried person thinking", anchors: ["worried", "person", "thinking"] },
+    response: { search: "person answering question classroom", anchors: ["person", "answering", "question", "classroom"] },
+    proposal: { search: "business proposal team meeting", anchors: ["business", "proposal", "team", "meeting"] },
+    representative: { search: "customer service representative office", anchors: ["customer", "service", "representative", "office"] },
+    improvement: { search: "home improvement renovation work", anchors: ["home", "improvement", "renovation", "work"] },
+    eventually: { search: "road reaching destination journey", anchors: ["road", "destination", "journey"] },
+    optional: { search: "menu choices selection", anchors: ["menu", "choices", "selection"] },
+    ambitious: { search: "mountain climber reaching summit", anchors: ["mountain", "climber", "summit"] },
+    "a great number of": { search: "large crowd many people", anchors: ["large", "crowd", "people"] },
+    "have a go at": { search: "beginner trying new activity", anchors: ["beginner", "trying", "activity"] },
+    exactly: { search: "precision measuring ruler", anchors: ["precision", "measuring", "ruler"] },
+    afterward: { search: "cleaning table after dinner", anchors: ["cleaning", "table", "dinner"] },
+    own: { search: "person holding house keys", anchors: ["person", "house", "keys"] }
+  };
 
   const QUERY_OVERRIDES = {
     cookery: "cooking class chef students",
@@ -96,13 +133,8 @@
     dishes: "washing dishes kitchen"
   };
 
-  const ABSTRACT_TERMS = new Set([
-    "available", "focus on", "seasonal", "private", "deal", "concentrate on",
-    "reputation", "technique", "cancellation", "reasonable", "inform", "propose",
-    "summarize", "noticeable", "in", "on", "at", "for", "since", "however",
-    "cause", "quality", "overall", "concern", "response", "proposal",
-    "representative", "improvement", "eventually", "optional", "ambitious",
-    "a great number of", "hardly", "have a go at", "quite", "exactly", "afterward", "own"
+  const NON_VISUAL_TERMS = new Set([
+    "in", "on", "at", "for", "since", "however", "hardly", "quite"
   ]);
 
   const LOW_VALUE_WORDS = new Set(["a", "an", "the", "of", "to", "and", "or", "for", "on", "in", "at"]);
@@ -144,11 +176,22 @@
     const input = normalizeInput(value);
     const english = input.english;
     const compact = english.replace(/\b(?:sth|sb)\b\.?/g, " ").replace(/\s+/g, " ").trim();
+    const scene = VISUAL_SCENES[compact];
+    const search = scene?.search || QUERY_OVERRIDES[compact] || compact;
+    const searchWords = search.split(" ").filter(Boolean);
+    const contextualQueries = scene?.queries || [
+      searchWords.slice(0, 2).join(" "),
+      searchWords.slice(-2).join(" "),
+      searchWords.slice(0, 3).join(" ")
+    ];
     return {
       key: compact,
       primary: compact,
-      search: QUERY_OVERRIDES[compact] || compact,
-      isAbstract: ABSTRACT_TERMS.has(compact),
+      search,
+      searchQueries: [...new Set((scene ? contextualQueries : [search]).filter(Boolean))],
+      anchors: scene?.anchors || [],
+      isContextual: Boolean(scene),
+      isNonVisual: NON_VISUAL_TERMS.has(compact),
       chinese: input.chinese
     };
   }
@@ -216,21 +259,27 @@
     if (result?.mature === true || !result?.thumbnail) return -1000;
     const title = normalizeQuery(result.title);
     const metadata = searchableMetadata(result);
+    if (BAD_VISUAL_TERMS.test(`${result.title || ""} ${metadata}`)) return -1000;
     const titleTokens = new Set(title.split(" ").filter(Boolean));
     const metadataTokens = new Set(metadata.split(" ").filter(Boolean));
     const primaryTokens = spec.primary.split(" ").filter((token) => token.length > 2 && !LOW_VALUE_WORDS.has(token));
     const searchTokens = spec.search.split(" ").filter((token) => token.length > 2 && !LOW_VALUE_WORDS.has(token));
+    const anchorTokens = (spec.anchors || []).filter((token) => token.length > 2);
     const primaryHits = primaryTokens.filter((token) => hasToken(metadataTokens, token)).length;
     const titleHits = primaryTokens.filter((token) => hasToken(titleTokens, token)).length;
     const contextHits = searchTokens.filter((token) => hasToken(metadataTokens, token)).length;
+    const anchorHits = anchorTokens.filter((token) => hasToken(metadataTokens, token)).length;
     let score = primaryHits * 13 + titleHits * 9 + contextHits * 5;
 
     if (spec.primary.length > 3 && title.includes(spec.primary)) score += 28;
     if (spec.search.length > 3 && metadata.includes(spec.search)) score += 12;
     if (primaryTokens.length && primaryHits === primaryTokens.length) score += 14;
-    if (!primaryHits && contextHits >= 2) score += 10;
-    if (!primaryHits && contextHits < 2) score -= 28;
-    if (BAD_VISUAL_TERMS.test(`${result.title || ""} ${metadata}`)) score -= 18;
+    if (spec.isContextual) {
+      score += anchorHits * 7;
+      if (anchorHits >= 2) score += 14;
+      if (anchorHits < 2) score -= 42;
+    } else if (!primaryHits && contextHits >= 2) score += 10;
+    else if (!primaryHits && contextHits < 2) score -= 28;
     if (/\b(?:no|not|without|missing|unavailable)\b/i.test(result.title || "")
       && !/\b(?:no|not|without|missing|unavailable)\b/i.test(spec.primary)) score -= 16;
     if (Number(result.width) >= 640 && Number(result.height) >= 420) score += 3;
@@ -238,7 +287,7 @@
     return score;
   }
 
-  function normalizeImage(result, score) {
+  function normalizeImage(result, score, spec) {
     const thumbnail = safeHttpUrl(result.thumbnail);
     if (!thumbnail) return null;
     return {
@@ -248,16 +297,17 @@
       creator: String(result.creator || "Openverse contributor").trim(),
       license: licenseLabel(result),
       source: String(result.source || "Openverse").trim(),
-      score
+      score,
+      matchType: spec.isContextual ? "scene" : "direct"
     };
   }
 
   function uniqueCandidates(candidates) {
     const seen = new Set();
     return candidates.filter((candidate) => {
-      const key = candidate.landingUrl || candidate.thumbnail;
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
+      const keys = [candidate.thumbnail, candidate.landingUrl].filter(Boolean);
+      if (!keys.length || keys.some((key) => seen.has(key))) return false;
+      keys.forEach((key) => seen.add(key));
       return true;
     });
   }
@@ -282,7 +332,7 @@
 
   async function candidatesFor(value, options = {}) {
     const spec = querySpec(value);
-    if (!spec.key || spec.isAbstract) return { spec, candidates: [] };
+    if (!spec.key || spec.isNonVisual) return { spec, candidates: [] };
 
     const cached = cachedCandidates(spec.key);
     if (cached !== undefined) return { spec, candidates: cached };
@@ -293,19 +343,38 @@
     }
 
     const request = (async () => {
-      const url = new URL(API_URL);
-      url.searchParams.set("q", spec.search);
-      url.searchParams.set("page_size", "16");
-      url.searchParams.set("mature", "false");
+      const collectedResults = [];
+      const fetchSearchResults = async (searchQuery) => {
+        const url = new URL(API_URL);
+        url.searchParams.set("q", searchQuery);
+        url.searchParams.set("page_size", spec.isContextual ? "24" : "20");
+        url.searchParams.set("mature", "false");
 
-      const response = await fetchWithTimeout(url.href, options.signal);
-      if (!response.ok) throw new Error(`Openverse request failed: ${response.status}`);
-      const payload = await response.json();
-      const scored = (Array.isArray(payload.results) ? payload.results : [])
+        const response = await fetchWithTimeout(url.href, options.signal);
+        if (!response.ok) throw new Error(`Openverse request failed: ${response.status}`);
+        const payload = await response.json();
+        return Array.isArray(payload.results) ? payload.results : [];
+      };
+      const viableCount = () => uniqueCandidates(collectedResults
+          .map((result) => ({ result, score: relevanceScore(result, spec) }))
+          .filter((item) => item.score >= (spec.isContextual ? 24 : 18))
+          .map((item) => normalizeImage(item.result, item.score, spec))
+          .filter(Boolean)).length;
+
+      const [firstQuery, ...fallbackQueries] = spec.searchQueries;
+      collectedResults.push(...await fetchSearchResults(firstQuery));
+      if (spec.isContextual && viableCount() < 4 && fallbackQueries.length) {
+        const fallbackResponses = await Promise.allSettled(fallbackQueries.map(fetchSearchResults));
+        fallbackResponses.forEach((response) => {
+          if (response.status === "fulfilled") collectedResults.push(...response.value);
+        });
+      }
+
+      const scored = collectedResults
         .map((result) => ({ result, score: relevanceScore(result, spec) }))
-        .filter((item) => item.score >= 18)
+        .filter((item) => item.score >= (spec.isContextual ? 24 : 18))
         .sort((left, right) => right.score - left.score)
-        .map((item) => normalizeImage(item.result, item.score))
+        .map((item) => normalizeImage(item.result, item.score, spec))
         .filter(Boolean);
       const candidates = uniqueCandidates(scored).slice(0, MAX_CANDIDATES);
       memoryCache[spec.key] = { savedAt: Date.now(), candidates };
