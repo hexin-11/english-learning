@@ -7,6 +7,8 @@
   const MAX_OCR_PAGES = 10;
   const MAX_WORDS = 300;
   const MAX_SENTENCES = 220;
+  const MAX_VISION_IMAGE_BYTES = 1400 * 1024;
+  const MAX_VISION_IMAGE_DIMENSION = 2200;
   const PDFJS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
   const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
   const MAMMOTH_URL = "https://cdn.jsdelivr.net/npm/mammoth@1.9.1/mammoth.browser.min.js";
@@ -179,6 +181,149 @@
     return tesseractPromise;
   }
 
+  function agentApiBase() {
+    return String(window.APP_CONFIG?.agentApiBase || "").replace(/\/$/, "");
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("无法读取这张图片。"));
+      };
+      image.src = url;
+    });
+  }
+
+  function canvasBlob(canvas, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("图片压缩失败。"));
+      }, "image/jpeg", quality);
+    });
+  }
+
+  function blobBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+      reader.onerror = () => reject(new Error("图片编码失败。"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function prepareVisionImage(file) {
+    const image = await loadImage(file);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    if (!sourceWidth || !sourceHeight) throw new Error("无法读取这张图片。");
+
+    const scale = Math.min(1, MAX_VISION_IMAGE_DIMENSION / Math.max(sourceWidth, sourceHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    const context = canvas.getContext("2d", { alpha: false });
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    let quality = 0.94;
+    let blob = await canvasBlob(canvas, quality);
+    while (blob.size > MAX_VISION_IMAGE_BYTES && quality > 0.58) {
+      quality -= 0.08;
+      blob = await canvasBlob(canvas, quality);
+    }
+    if (blob.size > MAX_VISION_IMAGE_BYTES) throw new Error("图片压缩后仍然过大，请裁掉无关区域后重试。");
+    return { mimeType: "image/jpeg", data: await blobBase64(blob) };
+  }
+
+  function normalizeVisionLesson(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const words = (Array.isArray(source.words) ? source.words : []).map((word) => ({
+      english: cleanupEnglish(word?.english),
+      ipa: normalizeIpa(word?.ipa || pronunciationFor(word?.english)),
+      chinese: cleanupChinese(word?.chinese)
+    })).filter((word) => {
+      const tokens = word.english.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || [];
+      return tokens.length >= 1
+        && tokens.length <= 7
+        && looksLikeReliableEnglish(word.english, false)
+        && containsChinese(word.chinese);
+    }).slice(0, MAX_WORDS);
+    const sentences = (Array.isArray(source.sentences) ? source.sentences : []).map((sentence) => ({
+      english: cleanupEnglish(sentence?.english),
+      chinese: cleanupChinese(sentence?.chinese)
+    })).filter((sentence) => looksLikeSentence(sentence.english)
+      && looksLikeReliableEnglish(sentence.english, true)
+      && containsChinese(sentence.chinese)).slice(0, MAX_SENTENCES);
+    return {
+      title: safeText(source.title, 180),
+      rawText: safeText(source.rawText, 120000),
+      words,
+      sentences
+    };
+  }
+
+  async function recognizeImageWithVision(file) {
+    const base = agentApiBase();
+    if (!base) throw new Error("智能识别后端未连接。");
+    setStatus("正在智能识别图片", "逐行读取词表，并重建被换行拆开的完整句子…", 18, "working");
+    const image = await prepareVisionImage(file);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 65000);
+    try {
+      const response = await fetch(`${base}/api/lesson-vision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image }),
+        signal: controller.signal
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || "智能识别暂时不可用。");
+      const lesson = normalizeVisionLesson(payload.lesson);
+      if (!lesson.words.length && !lesson.sentences.length) throw new Error("智能识别没有返回有效课程内容。");
+      return lesson;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
+  async function prepareOcrCanvas(file) {
+    const image = await loadImage(file);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    const scale = Math.min(3, Math.max(1.35, 1900 / Math.max(1, sourceWidth)));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      const gray = (pixels.data[index] * 0.299) + (pixels.data[index + 1] * 0.587) + (pixels.data[index + 2] * 0.114);
+      const contrasted = Math.max(0, Math.min(255, ((gray - 128) * 1.32) + 128));
+      pixels.data[index] = contrasted;
+      pixels.data[index + 1] = contrasted;
+      pixels.data[index + 2] = contrasted;
+      pixels.data[index + 3] = 255;
+    }
+    context.putImageData(pixels, 0, 0);
+    return canvas;
+  }
+
   function setStatus(message, detail, progress, state) {
     const status = $("#import-status");
     const messageNode = $("#import-status-message");
@@ -217,11 +362,17 @@
 
   async function createOcrWorker(onProgress) {
     const Tesseract = await getTesseract();
-    return Tesseract.createWorker(["eng", "chi_sim"], 1, {
+    const worker = await Tesseract.createWorker(["chi_sim", "eng"], 1, {
       logger(event) {
         if (event.status === "recognizing text") onProgress?.(event.progress || 0);
       }
     });
+    await worker.setParameters({
+      tessedit_pageseg_mode: "6",
+      preserve_interword_spaces: "1",
+      user_defined_dpi: "300"
+    });
+    return worker;
   }
 
   async function ocrPdf(pdf, pageCount) {
@@ -289,14 +440,36 @@
   }
 
   async function extractImage(file) {
-    setStatus("正在识别图片", "加载浏览器 OCR 与中英文语言模型…", 10, "working");
+    try {
+      const lesson = await recognizeImageWithVision(file);
+      activeWarnings.push("已使用小何智能识别逐行读取词表和完整句子；保存前仍建议快速核对一次。图片只用于本次识别，不会保存。");
+      return {
+        rawText: lesson.rawText || [
+          lesson.title,
+          ...lesson.words.map((word) => `${word.english} | ${word.ipa} | ${word.chinese}`),
+          ...lesson.sentences.map((sentence) => `${sentence.english} | ${sentence.chinese}`)
+        ].filter(Boolean).join("\n"),
+        structured: { words: lesson.words, sentences: lesson.sentences },
+        title: lesson.title
+      };
+    } catch (visionError) {
+      const detail = visionError?.name === "AbortError"
+        ? "智能识别超时，已自动切换到增强本地 OCR…"
+        : "智能识别暂时不可用，已自动切换到增强本地 OCR…";
+      setStatus("正在使用本地备用识别", detail, 20, "working");
+    }
+
+    setStatus("正在识别图片", "正在放大文字、增强对比度并分析中英混排…", 24, "working");
     const worker = await createOcrWorker((progress) => {
-      setStatus("正在识别图片", "图片越清晰，自动分段越准确。", 20 + progress * 70, "working");
+      setStatus("正在识别图片", "正在保留表格行序并过滤低质量文字碎片…", 28 + progress * 62, "working");
     });
     try {
-      const result = await worker.recognize(file);
-      activeWarnings.push("图片文字由 OCR 识别，请在保存前核对拼写、音标和标点。");
-      return normalizeSpaces(result.data.text || "");
+      const canvas = await prepareOcrCanvas(file);
+      const result = await worker.recognize(canvas);
+      canvas.width = 1;
+      canvas.height = 1;
+      activeWarnings.push("智能识别不可用，本次使用增强本地 OCR；已放大和增强文字，但复杂表格仍建议在保存前核对。");
+      return { rawText: normalizeSpaces(result.data.text || ""), structured: null, title: "" };
     } finally {
       await worker.terminate();
     }
@@ -316,6 +489,22 @@
     if (wordCount < 3 || (/^\/[\s\S]+\/$/.test(normalized) && isLikelyIpa(normalized))) return false;
     const abbreviationEnding = /\b(?:sth|sb|etc)\.$/i.test(normalized);
     return wordCount >= 4 || (!abbreviationEnding && /[.!?]["”']?$/.test(normalized));
+  }
+
+  function looksLikeReliableEnglish(value, sentenceMode) {
+    const text = String(value || "").trim();
+    const tokens = text.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || [];
+    if (!tokens.length) return false;
+    if (tokens.some((token) => token.length === 1 && !/^(?:a|I)$/i.test(token))) return false;
+    const letters = (text.match(/[A-Za-z]/g) || []).length;
+    const noise = (text.match(/[^A-Za-z\s'’.,!?;:()\-]/g) || []).length;
+    if (letters < 2 || noise > Math.max(2, Math.floor(letters * 0.12))) return false;
+    if (sentenceMode) {
+      const suspiciousShortCaps = tokens.filter((token) => /^[A-Z]{2,3}$/.test(token));
+      const vowelLess = tokens.filter((token) => token.length >= 3 && !/[aeiouy]/i.test(token));
+      if (suspiciousShortCaps.length >= 2 || vowelLess.length > Math.max(1, Math.floor(tokens.length / 3))) return false;
+    }
+    return true;
   }
 
   function cleanupEnglish(value) {
@@ -451,7 +640,11 @@
     function addWord(word) {
       const english = cleanupEnglish(word.english);
       const key = english.toLocaleLowerCase("en");
-      if (!english || !containsEnglish(english) || wordKeys.has(key) || words.length >= MAX_WORDS) return;
+      if (!english
+        || !containsEnglish(english)
+        || !looksLikeReliableEnglish(english, false)
+        || wordKeys.has(key)
+        || words.length >= MAX_WORDS) return;
       wordKeys.add(key);
       const candidateIpa = !word.ipa || String(word.ipa).includes("待补充") ? pronunciationFor(english) : word.ipa;
       words.push({ english, ipa: normalizeIpa(candidateIpa), chinese: cleanupChinese(word.chinese) || "中文释义待补充" });
@@ -460,7 +653,11 @@
     function addSentence(sentence) {
       const english = cleanupEnglish(sentence.english);
       const key = english.toLocaleLowerCase("en");
-      if (!english || !containsEnglish(english) || sentenceKeys.has(key) || sentences.length >= MAX_SENTENCES) return;
+      if (!english
+        || !containsEnglish(english)
+        || !looksLikeReliableEnglish(english, true)
+        || sentenceKeys.has(key)
+        || sentences.length >= MAX_SENTENCES) return;
       sentenceKeys.add(key);
       sentences.push({ english, chinese: cleanupChinese(sentence.chinese) || "中文翻译待补充" });
     }
@@ -645,19 +842,27 @@
     activeWarnings = [];
     $("#import-preview").hidden = true;
     try {
+      let structured = null;
+      let detectedTitle = "";
       if (extension === "pdf") activeRawText = await extractPdf(file);
       else if (extension === "docx") activeRawText = await extractDocx(file);
-      else activeRawText = await extractImage(file);
+      else {
+        const imageResult = await extractImage(file);
+        activeRawText = imageResult.rawText;
+        structured = imageResult.structured;
+        detectedTitle = imageResult.title;
+      }
 
       if (!activeRawText || (activeRawText.match(/[A-Za-z\u3400-\u9fff]/g) || []).length < 3) {
         throw new Error("没有识别到足够的中英文文字。请换一张更清晰的图片或检查文件内容。");
       }
       setStatus("正在整理课程结构", "自动匹配词表、音标和中英句子…", 94, "working");
-      const structured = structureText(activeRawText);
+      structured ||= structureText(activeRawText);
       if (!structured.words.length && !structured.sentences.length) {
         throw new Error("已读取文字，但暂时无法自动分出词表或英文句子。可尝试排版更清晰的文件。");
       }
       renderPreview(structured);
+      if (detectedTitle) $("#import-title").value = detectedTitle;
     } catch (error) {
       const networkHint = /加载失败|fetch|network|importing/i.test(String(error?.message || error));
       setStatus("导入失败", networkHint ? "解析组件未能加载，请检查网络后重试。" : (error?.message || "请检查文件后重试。"), 0, "error");
@@ -716,6 +921,7 @@
     getLessons,
     saveLesson,
     deleteLesson,
-    structureText
+    structureText,
+    normalizeVisionLesson
   };
 })();

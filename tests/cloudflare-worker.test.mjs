@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import worker, { cleanImage, geminiContents } from "../worker/src/index.mjs";
+import worker, { cleanImage, geminiContents, normalizeLessonVision } from "../worker/src/index.mjs";
 
 const env = {
   GEMINI_API_KEY: "test-secret",
@@ -16,6 +16,7 @@ assert.equal(health.ok, true);
 assert.equal(health.runtime, "cloudflare-worker");
 assert.equal(health.configured, true);
 assert.equal(health.capabilities.vision, true);
+assert.equal(health.capabilities.lessonVision, true);
 assert.equal(health.capabilities.tools, true);
 assert.equal(health.capabilities.approvals, true);
 
@@ -72,6 +73,48 @@ try {
   assert.ok(upstreamBody.tools[0].functionDeclarations.length >= 8);
   assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "create_presentation"));
   assert.equal(upstreamBody.toolConfig.functionCallingConfig.mode, "AUTO");
+
+  globalThis.fetch = async (_url, options) => {
+    upstreamRequest = { url: String(_url), options };
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({
+        title: "第六课",
+        words: [
+          { english: "theory", ipa: "/ˈθɪəri/", chinese: "理论，原理" },
+          { english: "procedure", ipa: "/prəˈsiːdʒə/", chinese: "过程，程序" }
+        ],
+        sentences: [{
+          english: "Yes, I really enjoy running.",
+          chinese: "是的，我真的很喜欢跑步。"
+        }],
+        rawText: "第六课单词\ntheory 理论，原理\nprocedure 过程，程序"
+      }) }] } }]
+    }), { status: 200, headers: { "x-goog-request-id": "vision-request" } });
+  };
+  const visionResponse = await worker.fetch(new Request("https://worker.test/api/lesson-vision", {
+    method: "POST",
+    headers: { ...allowedHeaders, "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.10" },
+    body: JSON.stringify({ image: { mimeType: "image/jpeg", data: jpegData } })
+  }), env);
+  assert.equal(visionResponse.status, 200);
+  const vision = await visionResponse.json();
+  assert.equal(vision.lesson.title, "第六课");
+  assert.deepEqual(vision.lesson.words.map((word) => word.english), ["theory", "procedure"]);
+  assert.equal(vision.lesson.sentences[0].english, "Yes, I really enjoy running.");
+  const visionBody = JSON.parse(upstreamRequest.options.body);
+  assert.equal(visionBody.generationConfig.responseMimeType, "application/json");
+  assert.equal(visionBody.generationConfig.temperature, 0.1);
+  assert.equal(visionBody.generationConfig.mediaResolution, "MEDIA_RESOLUTION_HIGH");
+  assert.match(visionBody.systemInstruction.parts[0].text, /表格的一行可能同时有两组/);
+
+  const filteredVision = normalizeLessonVision({
+    words: [{ english: "theory", ipa: "", chinese: "理论" }],
+    sentences: [
+      { english: "IT CE re I", chinese: "错误碎片" },
+      { english: "Where do you usually run?", chinese: "你通常在哪里跑步？" }
+    ]
+  });
+  assert.deepEqual(filteredVision.sentences.map((sentence) => sentence.english), ["Where do you usually run?"]);
 
   globalThis.fetch = async () => new Response(JSON.stringify({
     candidates: [{ content: { parts: [{
