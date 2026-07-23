@@ -3,6 +3,7 @@ const TOOL_NAMES = new Set([
   "list_lessons",
   "get_lesson_detail",
   "search_course",
+  "lookup_dictionary_word",
   "create_lesson",
   "edit_lesson",
   "delete_lesson",
@@ -41,6 +42,15 @@ export const AGENT_FUNCTION_DECLARATIONS = [
       type: "OBJECT",
       properties: { query: stringProperty("要搜索的英文或中文关键词") },
       required: ["query"]
+    }
+  },
+  {
+    name: "lookup_dictionary_word",
+    description: "通过在线英汉词典查询任意英文单词或短语的音标、词性和中文释义。用户询问课程外单词时优先调用，不要凭记忆编造。",
+    parameters: {
+      type: "OBJECT",
+      properties: { word: stringProperty("要查询的完整英文单词或短语") },
+      required: ["word"]
     }
   },
   {
@@ -106,11 +116,11 @@ export const AGENT_FUNCTION_DECLARATIONS = [
   },
   {
     name: "update_word_state",
-    description: "把课程中的单词收藏、取消收藏、标记为已掌握或待复习。",
+    description: "收藏或取消收藏任意英文单词或短语；课程外单词会自动通过在线词典补全音标和中文释义后收藏。也可把课程词或已收藏的词标记为已掌握或待复习。用户说‘收藏某词’时直接调用，不要先要求加入课程。",
     parameters: {
       type: "OBJECT",
       properties: {
-        word: stringProperty("课程中完整的英文单词或短语"),
+        word: stringProperty("完整的英文单词或短语，可以不在课程中"),
         action: stringProperty("目标状态", { enum: ["favorite", "unfavorite", "mastered", "review"] })
       },
       required: ["word", "action"]

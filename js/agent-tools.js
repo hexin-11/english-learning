@@ -71,6 +71,58 @@
     })));
   }
 
+  function normalizeEnglish(value) {
+    const fallback = cleanText(value, 160)
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/\s+/g, " ")
+      .toLocaleLowerCase("en");
+    return window.OnlineDictionary?.normalizeQuery?.(value) || fallback;
+  }
+
+  const PART_OF_SPEECH_LABELS = {
+    noun: "n.", verb: "v.", adjective: "adj.", adverb: "adv.",
+    pronoun: "pron.", preposition: "prep.", conjunction: "conj.",
+    interjection: "int.", determiner: "det.", numeral: "num."
+  };
+
+  function dictionaryChinese(entry) {
+    const groups = (Array.isArray(entry?.meanings) ? entry.meanings : []).flatMap((meaning) => {
+      const definitions = (Array.isArray(meaning?.definitions) ? meaning.definitions : [])
+        .map((definition) => cleanText(definition?.chinese, 180))
+        .filter(Boolean)
+        .slice(0, 2);
+      if (!definitions.length) return [];
+      const label = PART_OF_SPEECH_LABELS[String(meaning?.partOfSpeech || "").toLocaleLowerCase("en")]
+        || cleanText(meaning?.partOfSpeech, 24);
+      return [`${label ? `${label} ` : ""}${definitions.join("；")}`];
+    }).slice(0, 4);
+    return groups.join("；") || cleanText(entry?.translation, 500) || "中文释义待补充";
+  }
+
+  function dictionaryResult(entry) {
+    return {
+      word: cleanText(entry?.word || entry?.query, 160),
+      ipa: cleanText((Array.isArray(entry?.phonetics) ? entry.phonetics[0] : ""), 160),
+      chinese: dictionaryChinese(entry),
+      meanings: (Array.isArray(entry?.meanings) ? entry.meanings : []).slice(0, 8)
+    };
+  }
+
+  async function lookupDictionaryWord(args) {
+    const query = normalizeEnglish(args.word);
+    if (!query || !window.OnlineDictionary?.lookup) return { ok: false, error: "DICTIONARY_UNAVAILABLE" };
+    try {
+      const entry = await window.OnlineDictionary.lookup(query);
+      return { ok: true, ...dictionaryResult(entry), source: "online_dictionary" };
+    } catch (error) {
+      return {
+        ok: false,
+        error: "DICTIONARY_LOOKUP_FAILED",
+        message: cleanText(error?.message, 240) || "在线词典没有找到这个单词。"
+      };
+    }
+  }
+
   function learningOverview() {
     const lessonList = lessons();
     const words = allWords();
@@ -80,7 +132,7 @@
       words: words.length,
       mastered: state.mastered?.length || 0,
       review: state.review?.length || 0,
-      favorites: state.favorites?.length || 0,
+      favorites: (state.favorites?.length || 0) + (state.dictionaryFavorites?.length || 0),
       recentLessons: (state.recentLessons || []).slice(0, 5),
       currentPage: window.location.hash.slice(1) || "home",
       signedIn: Boolean(window.CloudAuth?.getState?.()?.user)
@@ -217,12 +269,32 @@
     return { ok: true, deleted: lessonSummary(lesson) };
   }
 
-  function updateWordState(args) {
-    const query = cleanText(args.word, 160).toLocaleLowerCase();
+  async function updateWordState(args) {
+    const query = normalizeEnglish(args.word);
     const word = allWords().find((item) => String(item.english || "").toLocaleLowerCase() === query);
-    if (!word) return { ok: false, error: "WORD_NOT_FOUND" };
     const action = cleanText(args.action, 40);
     const state = window.LearningStorage?.getState?.() || {};
+    if (!word) {
+      const favoriteId = window.LearningStorage?.dictionaryFavoriteId?.(query) || `dictionary:${encodeURIComponent(query)}`;
+      const saved = (state.dictionaryFavorites || []).find((item) => item.id === favoriteId);
+      if (action === "unfavorite") {
+        if (saved) window.LearningStorage.toggleDictionaryFavorite(saved);
+        return { ok: true, word: saved?.english || query, action, source: "online_dictionary" };
+      }
+      if (action === "mastered" || action === "review") {
+        if (!saved) return { ok: false, error: "WORD_NOT_SAVED" };
+        const statusList = action === "mastered" ? state.mastered : state.review;
+        if (!statusList?.includes(saved.id)) window.LearningStorage.setWordStatus(saved.id, action);
+        return { ok: true, word: saved.english, ipa: saved.ipa, chinese: saved.chinese, action, source: "online_dictionary" };
+      }
+      if (action !== "favorite") return { ok: false, error: "INVALID_ACTION" };
+      if (saved) return { ok: true, ...saved, word: saved.english, action, source: "online_dictionary", alreadySaved: true };
+      const lookup = await lookupDictionaryWord({ word: query });
+      if (!lookup.ok) return lookup;
+      const favorite = { english: lookup.word || query, ipa: lookup.ipa, chinese: lookup.chinese };
+      window.LearningStorage?.toggleDictionaryFavorite?.(favorite);
+      return { ok: true, word: favorite.english, ipa: favorite.ipa, chinese: favorite.chinese, action, source: "online_dictionary" };
+    }
     if (action === "favorite") {
       if (!state.favorites?.includes(word.id)) window.LearningStorage.toggleFavorite(word.id);
     } else if (action === "unfavorite") {
@@ -233,6 +305,16 @@
       if (!state.review?.includes(word.id)) window.LearningStorage.setWordStatus(word.id, "review");
     } else return { ok: false, error: "INVALID_ACTION" };
     return { ok: true, word: word.english, lesson: word.lessonTitle, action };
+  }
+
+  function matchDirectCommand(message) {
+    const value = cleanText(message, 600);
+    if (!/(收藏|加入收藏|移出收藏|取消收藏)/.test(value)) return [];
+    const matches = value.match(/[A-Za-z][A-Za-z'\u2019 -]{0,80}/g) || [];
+    const word = matches.map((item) => item.trim()).find(Boolean);
+    if (!word) return [];
+    const action = /(取消收藏|移出收藏)/.test(value) ? "unfavorite" : "favorite";
+    return [{ id: `direct-${Date.now()}`, name: "update_word_state", args: { word, action } }];
   }
 
   function navigate(args) {
@@ -380,6 +462,9 @@
       LESSON_NOT_FOUND: "没有找到指定课程，所以没有完成修改。",
       LESSON_READ_ONLY: "这节课当前不可编辑，所以没有完成修改。",
       WORD_NOT_FOUND: "没有在课程中找到这个单词，所以没有更新学习状态。",
+      WORD_NOT_SAVED: "这个在线词典单词还没有收藏，请先收藏后再标记学习状态。",
+      DICTIONARY_UNAVAILABLE: "在线词典暂时不可用，请刷新页面后重试。",
+      DICTIONARY_LOOKUP_FAILED: "在线词典没有找到这个单词，请检查拼写后重试。",
       IMPORTER_UNAVAILABLE: "课程保存功能暂时不可用，请刷新页面后重试。",
       TOOLS_UNAVAILABLE: "网页工具暂时不可用，请刷新页面后重试。"
     };
@@ -411,7 +496,14 @@
     if (call?.name === "delete_lesson") return `已删除课程“${cleanText(result.deleted?.title, 100) || "指定课程"}”。`;
     if (call?.name === "update_word_state") {
       const actions = { favorite: "收藏", unfavorite: "取消收藏", mastered: "标记为已掌握", review: "加入待复习" };
-      return `已将 ${cleanText(result.word, 100) || cleanText(args.word, 100)} ${actions[result.action] || "更新状态"}。`;
+      const detail = result.source === "online_dictionary" && result.action === "favorite"
+        ? `${cleanText(result.ipa, 100) ? ` ${cleanText(result.ipa, 100)}` : ""}${cleanText(result.chinese, 240) ? `：${cleanText(result.chinese, 240)}` : ""}`
+        : "";
+      const already = result.alreadySaved ? "（此前已收藏）" : "";
+      return `已将 ${cleanText(result.word, 100) || cleanText(args.word, 100)} ${actions[result.action] || "更新状态"}${already}${detail}。`;
+    }
+    if (call?.name === "lookup_dictionary_word") {
+      return `${cleanText(result.word, 100)}${cleanText(result.ipa, 100) ? ` ${cleanText(result.ipa, 100)}` : ""}：${cleanText(result.chinese, 500)}`;
     }
     if (call?.name === "navigate_to_page") return "已为你打开对应页面。";
     if (call?.name === "export_lesson") return `已完成 ${cleanText(result.format, 10).toUpperCase()} 导出。`;
@@ -449,6 +541,7 @@
       list_lessons: () => ({ ok: true, lessons: lessons().map(lessonSummary) }),
       get_lesson_detail: () => lessonDetail(args.lesson),
       search_course: () => searchCourse(args.query),
+      lookup_dictionary_word: () => lookupDictionaryWord(args),
       create_lesson: () => createLesson(args),
       edit_lesson: () => editLesson(args),
       delete_lesson: () => deleteLesson(args),
@@ -476,6 +569,7 @@
     execute,
     describe,
     summarizeTrace,
+    matchDirectCommand,
     requiresConfirmation: (call) => MUTATING_TOOLS.has(call?.name),
     takeReloadRequest
   });

@@ -73,6 +73,9 @@ try {
   assert.equal(upstreamBody.contents.at(-1).parts[0].text, "Hi");
   assert.ok(upstreamBody.tools[0].functionDeclarations.length >= 8);
   assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "create_presentation"));
+  assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "lookup_dictionary_word"));
+  const wordStateTool = upstreamBody.tools[0].functionDeclarations.find((tool) => tool.name === "update_word_state");
+  assert.match(wordStateTool.description, /任意英文单词/);
   assert.equal(upstreamBody.toolConfig.functionCallingConfig.mode, "AUTO");
 
   globalThis.fetch = async (_url, options) => {

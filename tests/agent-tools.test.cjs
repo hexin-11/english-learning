@@ -9,6 +9,7 @@ const agentSource = fs.readFileSync(path.join(root, "js", "agent.js"), "utf8");
 const savedLessons = [];
 const prepended = [];
 const presentations = [];
+const dictionaryFavorites = [];
 const baseLesson = {
   id: "lesson-1",
   number: 1,
@@ -45,9 +46,30 @@ const window = {
     deleteLesson: () => true
   },
   LearningStorage: {
-    getState: () => ({ favorites: [], mastered: [], review: [], recentLessons: [] }),
+    getState: () => ({ favorites: [], dictionaryFavorites, mastered: [], review: [], recentLessons: [] }),
     toggleFavorite() {},
+    dictionaryFavoriteId: (value) => `dictionary:${encodeURIComponent(String(value).trim().toLowerCase())}`,
+    toggleDictionaryFavorite(entry) {
+      const id = this.dictionaryFavoriteId(entry.english);
+      const index = dictionaryFavorites.findIndex((item) => item.id === id);
+      if (index >= 0) dictionaryFavorites.splice(index, 1);
+      else dictionaryFavorites.push({ id, ...entry });
+    },
     setWordStatus() {}
+  },
+  OnlineDictionary: {
+    normalizeQuery: (value) => String(value || "").trim().toLowerCase(),
+    async lookup(word) {
+      return {
+        word,
+        phonetics: ["/ɪnˈtɪmɪdeɪt/"],
+        translation: "恐吓；威胁",
+        meanings: [{
+          partOfSpeech: "verb",
+          definitions: [{ chinese: "恐吓；威胁", definition: "frighten someone" }]
+        }]
+      };
+    }
   },
   CloudAuth: { getState: () => ({ user: null }) },
   CourseExporter: { exportPdf: async () => {}, exportWord: () => {} },
@@ -66,12 +88,32 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.equal(search.ok, true);
   assert.equal(search.words[0].english, "hello");
 
+  const lookup = await window.XiaoHeTools.execute({ name: "lookup_dictionary_word", args: { word: "intimidate" } });
+  assert.equal(lookup.ok, true);
+  assert.equal(lookup.ipa, "/ɪnˈtɪmɪdeɪt/");
+  assert.match(lookup.chinese, /v\. 恐吓；威胁/);
+
+  const directFavorite = window.XiaoHeTools.matchDirectCommand("intimidate给我收藏一下");
+  assert.equal(directFavorite.length, 1);
+  assert.equal(directFavorite[0].name, "update_word_state");
+  assert.equal(directFavorite[0].args.word, "intimidate");
+
+  const favorite = await window.XiaoHeTools.execute(directFavorite[0]);
+  assert.equal(favorite.ok, true);
+  assert.equal(favorite.source, "online_dictionary");
+  assert.equal(dictionaryFavorites[0].english, "intimidate");
+  assert.match(window.XiaoHeTools.summarizeTrace([{
+    calls: directFavorite,
+    results: [{ name: "update_word_state", result: favorite }]
+  }]), /已将 intimidate 收藏.*恐吓/);
+
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "get_lesson_detail" }), false);
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "create_lesson" }), true);
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "create_presentation" }), true);
   assert.match(source, /pptx\.writeFile\(\{ fileName, compression: true \}\)/);
   assert.match(agentSource, /XiaoHeTools\?\.summarizeTrace\?\.\(trace\)/);
   assert.match(agentSource, /completedMutations\.get\(key\)/);
+  assert.match(agentSource, /matchDirectCommand/);
 
   const created = await window.XiaoHeTools.execute({
     name: "create_lesson",

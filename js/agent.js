@@ -812,15 +812,23 @@
       const trace = [];
       const completedMutations = new Map();
       let reply = "";
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-        const response = await requestReply(message, previous, attachment, trace);
-        if (!response.toolCalls.length) {
-          reply = cleanAssistantText(response.reply);
-          break;
+      const directCalls = attachment ? [] : (window.XiaoHeTools?.matchDirectCommand?.(message) || []);
+      if (directCalls.length) {
+        updateTypingStatus(`${text("working")} · ${directCalls.map((call) => call.name).join("、")}`);
+        const results = await executeToolCalls(directCalls, completedMutations);
+        trace.push({ calls: directCalls, results });
+        reply = window.XiaoHeTools?.summarizeTrace?.(trace) || "";
+      } else {
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+          const response = await requestReply(message, previous, attachment, trace);
+          if (!response.toolCalls.length) {
+            reply = cleanAssistantText(response.reply);
+            break;
+          }
+          updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
+          const results = await executeToolCalls(response.toolCalls, completedMutations);
+          trace.push({ calls: response.toolCalls, results });
         }
-        updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
-        const results = await executeToolCalls(response.toolCalls, completedMutations);
-        trace.push({ calls: response.toolCalls, results });
       }
       if (!reply) {
         reply = window.XiaoHeTools?.summarizeTrace?.(trace)
