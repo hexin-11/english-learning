@@ -4,6 +4,7 @@ const TOOL_NAMES = new Set([
   "get_lesson_detail",
   "search_course",
   "lookup_dictionary_word",
+  "get_review_material",
   "create_lesson",
   "edit_lesson",
   "delete_lesson",
@@ -51,6 +52,16 @@ export const AGENT_FUNCTION_DECLARATIONS = [
       type: "OBJECT",
       properties: { word: stringProperty("要查询的完整英文单词或短语") },
       required: ["word"]
+    }
+  },
+  {
+    name: "get_review_material",
+    description: "读取当前账号真实的拼写错题、待复习单词、未掌握词汇与收藏词汇。制定个性化复习计划、生成测验或分析薄弱点前必须调用，不要凭空猜测用户错题。",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        limit: { type: "NUMBER", description: "最多返回多少个重点项目，默认 20，最大 50" }
+      }
     }
   },
   {

@@ -139,6 +139,91 @@
     };
   }
 
+  function spellingSentences(lesson) {
+    const items = [];
+    (lesson.studyNotes || []).forEach((note) => (note.examples || []).forEach((example) => items.push(example)));
+    (lesson.sentences || []).forEach((sentence) => items.push(sentence));
+    const seen = new Set();
+    return items.filter((item) => {
+      const english = cleanText(item.english, 240);
+      const key = english.toLocaleLowerCase("en").replace(/\s+/g, " ");
+      const wordCount = key.split(" ").filter(Boolean).length;
+      if (!key || seen.has(key) || wordCount < 2 || wordCount > 38 || english.includes("/")) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function readSpellingMistakes() {
+    try {
+      const parsed = JSON.parse(window.localStorage?.getItem("hexin-spelling-preferences:v1") || "{}");
+      return {
+        word: new Set(Array.isArray(parsed.mistakes?.word) ? parsed.mistakes.word : []),
+        sentence: new Set(Array.isArray(parsed.mistakes?.sentence) ? parsed.mistakes.sentence : [])
+      };
+    } catch (_error) {
+      return { word: new Set(), sentence: new Set() };
+    }
+  }
+
+  function reviewMaterial(args = {}) {
+    const limit = Math.max(1, Math.min(50, Number(args.limit) || 20));
+    const state = window.LearningStorage?.getState?.() || {};
+    const mastered = new Set(Array.isArray(state.mastered) ? state.mastered : []);
+    const review = new Set(Array.isArray(state.review) ? state.review : []);
+    const mistakes = readSpellingMistakes();
+    const wordQuestions = [];
+    const sentenceQuestions = [];
+
+    lessons().forEach((lesson) => {
+      (lesson.words || []).forEach((word, index) => {
+        const itemId = `${lesson.id}:${word._id || index}`;
+        const spellingId = `word:${itemId}`;
+        wordQuestions.push({
+          id: itemId,
+          english: cleanText(word.english, 160),
+          ipa: cleanText(word.ipa, 160),
+          chinese: cleanText(word.chinese, 300),
+          lessonId: String(lesson.id || ""),
+          lessonTitle: cleanText(lesson.title, 180),
+          spellingMistake: mistakes.word.has(spellingId),
+          status: review.has(itemId) ? "review" : mastered.has(itemId) ? "mastered" : "unmastered"
+        });
+      });
+      spellingSentences(lesson).forEach((sentence, index) => {
+        const spellingId = `sentence:${lesson.id}:${sentence._id || index}`;
+        if (!mistakes.sentence.has(spellingId)) return;
+        sentenceQuestions.push({
+          id: spellingId,
+          english: cleanText(sentence.english, 240),
+          chinese: cleanText(sentence.chinese, 400),
+          lessonTitle: cleanText(lesson.title, 180)
+        });
+      });
+    });
+
+    const priorityWords = wordQuestions
+      .filter((item) => item.spellingMistake || item.status === "review" || item.status === "unmastered")
+      .sort((left, right) => Number(right.spellingMistake) - Number(left.spellingMistake)
+        || Number(right.status === "review") - Number(left.status === "review"));
+    const dictionaryFavorites = (Array.isArray(state.dictionaryFavorites) ? state.dictionaryFavorites : [])
+      .slice(0, limit).map((item) => ({
+        english: cleanText(item.english, 160), ipa: cleanText(item.ipa, 160), chinese: cleanText(item.chinese, 300)
+      }));
+    return {
+      ok: true,
+      summary: {
+        spellingWordMistakes: wordQuestions.filter((item) => item.spellingMistake).length,
+        spellingSentenceMistakes: sentenceQuestions.length,
+        reviewWords: wordQuestions.filter((item) => item.status === "review").length,
+        masteredWords: mastered.size
+      },
+      priorityWords: priorityWords.slice(0, limit),
+      sentenceMistakes: sentenceQuestions.slice(0, limit),
+      dictionaryFavorites
+    };
+  }
+
   function queryTerms(value) {
     const normalized = cleanText(value, 1000).toLocaleLowerCase("en");
     return [...new Set(normalized.match(/[a-z][a-z'\u2019-]{1,}|[\u3400-\u9fff]{2,}/g) || [])].slice(0, 20);
@@ -638,6 +723,7 @@
       get_lesson_detail: () => lessonDetail(args.lesson),
       search_course: () => searchCourse(args.query),
       lookup_dictionary_word: () => lookupDictionaryWord(args),
+      get_review_material: () => reviewMaterial(args),
       create_lesson: () => createLesson(args),
       edit_lesson: () => editLesson(args),
       delete_lesson: () => deleteLesson(args),

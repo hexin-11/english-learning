@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import worker, { cleanImage, geminiContents, normalizeLessonVision } from "../worker/src/index.mjs";
+import worker, {
+  agentGenerationConfig,
+  classifyAgentTask,
+  cleanImage,
+  geminiContents,
+  normalizeLessonVision
+} from "../worker/src/index.mjs";
 
 const env = {
   GEMINI_API_KEY: "test-secret",
@@ -45,6 +51,10 @@ const contents = geminiContents(
   { mimeType: "image/jpeg", data: jpegData }
 );
 assert.equal(contents.at(-1).parts[1].inlineData.data, jpegData);
+assert.equal(classifyAgentTask("Hi", null, []).mode, "fast");
+assert.equal(classifyAgentTask("请根据我的错题和待复习单词制定计划并生成练习", null, []).mode, "deep");
+assert.equal(agentGenerationConfig("请分析全部错题并制定复习计划", null, [], "gemini-3-flash").config.thinkingConfig.thinkingLevel, "HIGH");
+assert.equal(agentGenerationConfig("请分析全部错题并制定复习计划", null, [], "gemini-2.5-flash").config.thinkingConfig.thinkingBudget, 2048);
 
 const originalFetch = globalThis.fetch;
 let upstreamRequest;
@@ -74,10 +84,32 @@ try {
   assert.ok(upstreamBody.tools[0].functionDeclarations.length >= 8);
   assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "create_presentation"));
   assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "lookup_dictionary_word"));
+  assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "get_review_material"));
+  assert.equal(upstreamBody.generationConfig.thinkingConfig, undefined);
   const wordStateTool = upstreamBody.tools[0].functionDeclarations.find((tool) => tool.name === "update_word_state");
   assert.match(wordStateTool.description, /任意英文单词/);
   assert.match(upstreamBody.systemInstruction.parts[0].text, /verification\.verified/);
   assert.equal(upstreamBody.toolConfig.functionCallingConfig.mode, "AUTO");
+
+  const thinkingBodies = [];
+  globalThis.fetch = async (_url, options) => {
+    thinkingBodies.push(JSON.parse(options.body));
+    if (thinkingBodies.length === 1) {
+      return new Response(JSON.stringify({ error: { status: "INVALID_ARGUMENT" } }), { status: 400 });
+    }
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "复习计划已准备好。" }] } }]
+    }), { status: 200 });
+  };
+  const deepResponse = await worker.fetch(new Request("https://worker.test/api/chat", {
+    method: "POST",
+    headers: { ...allowedHeaders, "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.70" },
+    body: JSON.stringify({ message: "请根据我的全部错题分析薄弱点并制定复习计划", history: [] })
+  }), env);
+  assert.equal(deepResponse.status, 200);
+  assert.equal((await deepResponse.json()).reasoningMode, "deep");
+  assert.equal(thinkingBodies[0].generationConfig.thinkingConfig.thinkingLevel, "HIGH");
+  assert.equal(thinkingBodies[1].generationConfig.thinkingConfig, undefined);
 
   globalThis.fetch = async (_url, options) => {
     upstreamRequest = { url: String(_url), options };

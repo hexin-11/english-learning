@@ -323,8 +323,37 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+export function classifyAgentTask(message, image, trace = []) {
+  const text = String(message || "").trim();
+  let score = image ? 2 : 0;
+  if (text.length > 160) score += 1;
+  const planning = /(计划|规划|分析|比较|总结|整理|批量|全部|根据.*(?:课程|错题|记录)|复习|出题|练习|测试|学习方案|制作.*PPT|create|plan|compare|analy[sz]e)/i;
+  const actions = text.match(/(创建|新增|添加|修改|删除|导出|制作|收藏|标记|移动|生成)/g) || [];
+  if (planning.test(text)) score += 2;
+  if (actions.length >= 2) score += 1;
+  if (Array.isArray(trace) && trace.length) score += 1;
+  return { mode: score >= 2 ? "deep" : "fast", score };
+}
+
+export function agentGenerationConfig(message, image, trace, model) {
+  const task = classifyAgentTask(message, image, trace);
+  const config = {
+    maxOutputTokens: task.mode === "deep" ? 1500 : 900,
+    temperature: task.mode === "deep" ? 0.45 : 0.6,
+    ...(image ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {})
+  };
+  if (task.mode === "deep") {
+    config.thinkingConfig = String(model || "").includes("2.5")
+      ? { thinkingBudget: 2048 }
+      : { thinkingLevel: "HIGH" };
+  }
+  return { mode: task.mode, config };
+}
+
 async function createAgentReply(env, message, history, image, context, trace) {
   const model = String(env.GEMINI_MODEL || "gemini-flash-latest").trim();
+  const profile = agentGenerationConfig(message, image, trace, model);
+  let useThinking = Boolean(profile.config.thinkingConfig);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -341,9 +370,8 @@ async function createAgentReply(env, message, history, image, context, trace) {
           contents: geminiContents(history, message, image, context, trace),
           ...agentToolConfig(),
           generationConfig: {
-            maxOutputTokens: 900,
-            temperature: 0.7,
-            ...(image ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {})
+            ...profile.config,
+            ...(!useThinking ? { thinkingConfig: undefined } : {})
           }
         }),
         signal: controller.signal
@@ -352,13 +380,18 @@ async function createAgentReply(env, message, history, image, context, trace) {
       const payload = await response.json().catch(() => ({}));
       if (response.ok) {
         const toolCalls = extractToolCalls(payload);
-        if (toolCalls.length) return { toolCalls, requestId, model };
+        if (toolCalls.length) return { toolCalls, requestId, model, reasoningMode: profile.mode };
         const reply = outputText(payload);
         if (!reply) throw publicError("EMPTY_RESPONSE", 502, response.status);
-        return { reply, requestId, model };
+        return { reply, requestId, model, reasoningMode: profile.mode };
       }
 
       const upstreamCode = payload?.error?.status || payload?.error?.code || "unknown";
+      if (response.status === 400 && useThinking) {
+        useThinking = false;
+        attempt -= 1;
+        continue;
+      }
       const retryable = response.status === 429 || response.status >= 500 || upstreamCode === "RESOURCE_EXHAUSTED";
       console.error("Gemini request failed", { status: response.status, requestId, code: upstreamCode, attempt: attempt + 1 });
       if (retryable && attempt < RETRY_DELAYS_MS.length) {
@@ -578,6 +611,7 @@ export async function handleRequest(request, env) {
       toolCalls: result.toolCalls || [],
       provider: "gemini",
       model: result.model,
+      reasoningMode: result.reasoningMode,
       requestId: result.requestId
     }, 200, cors);
   } catch (error) {

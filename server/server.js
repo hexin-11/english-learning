@@ -388,6 +388,22 @@ function geminiContents(history, message, image, contextText = "") {
   ];
 }
 
+function localAgentGenerationConfig(message, image, trace) {
+  const text = String(message || "");
+  let score = image ? 2 : 0;
+  if (text.length > 160) score += 1;
+  if (/(计划|规划|分析|比较|总结|整理|批量|全部|根据.*(?:课程|错题|记录)|复习|出题|练习|测试|学习方案|制作.*PPT|create|plan|compare|analy[sz]e)/i.test(text)) score += 2;
+  if ((text.match(/(创建|新增|添加|修改|删除|导出|制作|收藏|标记|移动|生成)/g) || []).length >= 2) score += 1;
+  if (Array.isArray(trace) && trace.length) score += 1;
+  const deep = score >= 2;
+  return {
+    maxOutputTokens: deep ? 1500 : 900,
+    temperature: deep ? 0.45 : 0.6,
+    ...(image ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {}),
+    ...(deep ? { thinkingConfig: String(MODEL).includes("2.5") ? { thinkingBudget: 2048 } : { thinkingLevel: "HIGH" } } : {})
+  };
+}
+
 async function createAgentReply(message, history, image, context, trace) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -407,11 +423,7 @@ async function createAgentReply(message, history, image, context, trace) {
           trace
         ),
         ...agentTools.agentToolConfig(),
-        generationConfig: {
-          maxOutputTokens: 900,
-          temperature: 0.7,
-          ...(image ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {})
-        }
+        generationConfig: localAgentGenerationConfig(message, image, trace)
       }),
       signal: controller.signal
     });

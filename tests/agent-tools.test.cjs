@@ -10,6 +10,9 @@ const savedLessons = [];
 const prepended = [];
 const presentations = [];
 const dictionaryFavorites = [];
+const localStorageValues = new Map([
+  ["hexin-spelling-preferences:v1", JSON.stringify({ mistakes: { word: ["word:lesson-1:hello"], sentence: [] } })]
+]);
 const baseLesson = {
   id: "lesson-1",
   number: 1,
@@ -72,6 +75,10 @@ const window = {
     }
   },
   CloudAuth: { getState: () => ({ user: null }) },
+  localStorage: {
+    getItem: (key) => localStorageValues.get(key) || null,
+    setItem: (key, value) => localStorageValues.set(key, String(value))
+  },
   XiaoHeMemory: { context: () => ({ preferences: ["美式发音"], goals: [], facts: [], recentTasks: [] }) },
   CourseExporter: { exportPdf: async () => {}, exportWord: () => {} },
   location: { hash: "#lessons" }
@@ -88,6 +95,12 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   const relevantContext = window.XiaoHeTools.context("hello 怎么读");
   assert.equal(relevantContext.relevantLessons[0].title, "第一课");
   assert.equal(relevantContext.relevantLessons[0].words[0].english, "hello");
+
+  const reviewMaterial = await window.XiaoHeTools.execute({ name: "get_review_material", args: { limit: 10 } });
+  assert.equal(reviewMaterial.ok, true);
+  assert.equal(reviewMaterial.summary.spellingWordMistakes, 1);
+  assert.equal(reviewMaterial.priorityWords[0].english, "hello");
+  assert.equal(reviewMaterial.priorityWords[0].spellingMistake, true);
 
   const search = await window.XiaoHeTools.execute({ name: "search_course", args: { query: "你好" } });
   assert.equal(search.ok, true);
