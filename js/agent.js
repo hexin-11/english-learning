@@ -170,6 +170,7 @@
     checked: false,
     attachment: null,
     processingImage: false,
+    catReactionTimer: null,
     drag: {
       pointerId: null,
       startX: 0,
@@ -324,6 +325,18 @@
     setLauncherPosition(position.x * maxLeft, position.y * maxTop, false);
   }
 
+  function triggerCatLaugh() {
+    const launcher = $("#agent-launcher");
+    window.clearTimeout(state.catReactionTimer);
+    launcher.classList.remove("is-happy");
+    void launcher.offsetWidth;
+    launcher.classList.add("is-happy");
+    state.catReactionTimer = window.setTimeout(() => {
+      launcher.classList.remove("is-happy");
+      state.catReactionTimer = null;
+    }, 900);
+  }
+
   function startLauncherDrag(event) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const launcher = $("#agent-launcher");
@@ -334,6 +347,7 @@
     state.drag.startLeft = rect.left;
     state.drag.startTop = rect.top;
     state.drag.moved = false;
+    launcher.classList.add("is-poked");
     try {
       launcher.setPointerCapture?.(event.pointerId);
     } catch (_error) {
@@ -348,6 +362,7 @@
     if (!state.drag.moved && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
     state.drag.moved = true;
     event.preventDefault();
+    $("#agent-launcher").classList.remove("is-poked");
     $("#agent-launcher").classList.add("is-dragging");
     setLauncherPosition(state.drag.startLeft + deltaX, state.drag.startTop + deltaY, false);
   }
@@ -361,7 +376,7 @@
       state.drag.suppressClick = true;
       window.setTimeout(() => { state.drag.suppressClick = false; }, 0);
     }
-    launcher.classList.remove("is-dragging");
+    launcher.classList.remove("is-dragging", "is-poked");
     try {
       if (launcher.hasPointerCapture?.(event.pointerId)) launcher.releasePointerCapture(event.pointerId);
     } catch (_error) {
@@ -740,6 +755,7 @@
         event.preventDefault();
         return;
       }
+      triggerCatLaugh();
       setOpen($("#agent-panel").hidden);
     });
     $("#agent-close").addEventListener("click", () => setOpen(false));

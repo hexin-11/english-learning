@@ -22,6 +22,11 @@ assert.match(agentSource, /MAX_IMAGE_DIMENSION\s*=\s*2048/);
 assert.match(agentSource, /MAX_IMAGE_BYTES\s*=\s*1400\s*\*\s*1024/);
 assert.match(agentSource, /image:\s*attachment\s*\?/);
 assert.match(agentSource, /storedMessages\s*=\s*state\.messages\.map/);
+assert.match(indexSource, /class=["']agent-cat-frame agent-cat-frame-idle["']/);
+assert.match(indexSource, /class=["']agent-cat-frame agent-cat-frame-smile["']/);
+assert.match(indexSource, /xiaohe-handdrawn-smile\.png/);
+assert.match(agentSource, /function triggerCatLaugh\s*\(/);
+assert.match(agentSource, /launcher\.classList\.add\("is-happy"\)/);
 assert.match(serverSource, /mediaResolution:\s*"MEDIA_RESOLUTION_HIGH"/);
 assert.match(promptSource, /图片含英文时，准确抄写、翻译、纠错/);
 

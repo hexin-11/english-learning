@@ -3879,7 +3879,52 @@ body.lesson-is-dragging {
   user-select: none;
 }
 
+.agent-launcher:focus-visible {
+  border-radius: 50%;
+  outline: 1px solid var(--line-strong);
+  outline-offset: 3px;
+}
+
+.agent-cat-character {
+  position: relative;
+  display: block;
+  width: 54px;
+  height: 54px;
+  pointer-events: none;
+  transform: translateY(8px);
+  transform-origin: bottom center;
+  animation: agent-cat-idle 4.8s ease-in-out infinite;
+  transition: transform 160ms ease;
+}
+
+.agent-cat-character::before,
+.agent-cat-character::after {
+  position: absolute;
+  z-index: 3;
+  width: 7px;
+  height: 10px;
+  border-top: 2px solid currentcolor;
+  border-radius: 50%;
+  opacity: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.agent-cat-character::before {
+  top: 9px;
+  left: 1px;
+  transform: rotate(-42deg);
+}
+
+.agent-cat-character::after {
+  top: 4px;
+  right: 1px;
+  transform: rotate(38deg);
+}
+
 .agent-launcher img {
+  position: absolute;
+  inset: 0;
   width: 54px;
   max-width: none;
   height: 54px;
@@ -3888,9 +3933,19 @@ body.lesson-is-dragging {
   filter: drop-shadow(0 8px 8px rgb(15 15 15 / 20%));
   object-fit: contain;
   pointer-events: none;
-  transform: translateY(8px);
-  transform-origin: bottom center;
-  transition: transform 160ms ease;
+  transition: opacity 80ms linear;
+}
+
+.agent-cat-frame-smile {
+  opacity: 0;
+}
+
+.agent-launcher.is-happy .agent-cat-frame-idle {
+  opacity: 0;
+}
+
+.agent-launcher.is-happy .agent-cat-frame-smile {
+  opacity: 1;
 }
 
 html[data-theme="dark"] .agent-header-avatar,
@@ -3902,7 +3957,8 @@ html[data-theme="dark"] .agent-launcher img {
   cursor: grabbing;
 }
 
-.agent-launcher.is-dragging img {
+.agent-launcher.is-dragging .agent-cat-character {
+  animation: none;
   transform: translateY(8px) scale(1.04);
   transition: none;
 }
@@ -3911,9 +3967,73 @@ html[data-theme="dark"] .agent-launcher img {
   opacity: 0;
 }
 
-.agent-launcher:hover img,
-.agent-launcher:focus-visible img {
+.agent-launcher:hover .agent-cat-character,
+.agent-launcher:focus-visible .agent-cat-character {
+  animation-play-state: paused;
   transform: translateY(5px) scale(1.035);
+}
+
+.agent-launcher.is-poked .agent-cat-character {
+  animation: none;
+  transform: translateY(10px) scale(0.96, 0.9) rotate(-2deg);
+}
+
+.agent-launcher.is-happy .agent-cat-character {
+  animation: agent-cat-laugh 900ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.agent-launcher.is-happy .agent-cat-character::before,
+.agent-launcher.is-happy .agent-cat-character::after {
+  animation: agent-cat-giggle-lines 900ms ease-out both;
+}
+
+@keyframes agent-cat-idle {
+  0%,
+  100% {
+    transform: translateY(8px) scale(1) rotate(0);
+  }
+  42% {
+    transform: translateY(6px) scale(1.012, 0.99) rotate(-0.7deg);
+  }
+  52% {
+    transform: translateY(7px) scale(1.004, 0.996) rotate(1deg);
+  }
+  61% {
+    transform: translateY(6px) scale(1.01, 0.992) rotate(-0.4deg);
+  }
+}
+
+@keyframes agent-cat-laugh {
+  0%,
+  100% {
+    transform: translateY(8px) scale(1) rotate(0);
+  }
+  14% {
+    transform: translateY(10px) scale(1.06, 0.92) rotate(-2deg);
+  }
+  31% {
+    transform: translateY(1px) scale(0.98, 1.08) rotate(4deg);
+  }
+  48% {
+    transform: translateY(5px) scale(1.04, 0.97) rotate(-4deg);
+  }
+  66% {
+    transform: translateY(2px) scale(0.99, 1.05) rotate(3deg);
+  }
+  82% {
+    transform: translateY(7px) scale(1.02, 0.99) rotate(-1deg);
+  }
+}
+
+@keyframes agent-cat-giggle-lines {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  22%,
+  68% {
+    opacity: 0.8;
+  }
 }
 
 .agent-launcher-label {
@@ -4424,6 +4544,11 @@ html[data-theme="dark"] .agent-launcher img {
   }
 
   .agent-launcher img {
+    width: 47px;
+    height: 47px;
+  }
+
+  .agent-cat-character {
     width: 47px;
     height: 47px;
   }
@@ -5103,7 +5228,11 @@ html[data-theme="dark"] .agent-launcher img {
 
   .agent-panel,
   .agent-status[data-status="checking"]::before,
-  .agent-typing-dots i {
+  .agent-typing-dots i,
+  .agent-cat-character,
+  .agent-launcher.is-happy .agent-cat-character,
+  .agent-launcher.is-happy .agent-cat-character::before,
+  .agent-launcher.is-happy .agent-cat-character::after {
     animation: none;
   }
 
