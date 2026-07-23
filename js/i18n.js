@@ -8,6 +8,7 @@
   const messages = {
     zh: {
       "edit.menu": "课程菜单",
+      "edit.dragLesson": "拖动调整课程顺序",
       "edit.addLesson": "新增课程",
       "edit.newLesson": "第{number}课",
       "edit.manualSource": "手动创建",
@@ -121,6 +122,7 @@
     },
     en: {
       "edit.menu": "Lesson menu",
+      "edit.dragLesson": "Drag to reorder lesson",
       "edit.addLesson": "Add lesson",
       "edit.newLesson": "Lesson {number}",
       "edit.manualSource": "Created manually",
@@ -144,6 +146,7 @@
     },
     ko: {
       "edit.menu": "수업 메뉴",
+      "edit.dragLesson": "드래그하여 수업 순서 변경",
       "edit.addLesson": "수업 추가",
       "edit.newLesson": "제 {number}과",
       "edit.manualSource": "직접 생성",
@@ -167,6 +170,7 @@
     },
     ja: {
       "edit.menu": "レッスンメニュー",
+      "edit.dragLesson": "ドラッグしてレッスンを並べ替え",
       "edit.addLesson": "レッスンを追加",
       "edit.newLesson": "レッスン {number}",
       "edit.manualSource": "手動作成",

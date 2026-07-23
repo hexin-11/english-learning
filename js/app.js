@@ -277,6 +277,9 @@
           <span class="lesson-summary-controls">
             <span class="summary-action"><span>${t("lessons.open")}</span></span>
             <span class="lesson-row-actions" data-lesson-actions="${escapeHTML(lesson.id)}">
+              <button class="lesson-icon-button lesson-drag-handle" type="button" data-lesson-drag-handle="${escapeHTML(lesson.id)}" aria-label="${t("edit.dragLesson")}" title="${t("edit.dragLesson")}" aria-keyshortcuts="ArrowUp ArrowDown">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1.35"></circle><circle cx="16" cy="6" r="1.35"></circle><circle cx="8" cy="12" r="1.35"></circle><circle cx="16" cy="12" r="1.35"></circle><circle cx="8" cy="18" r="1.35"></circle><circle cx="16" cy="18" r="1.35"></circle></svg>
+              </button>
               ${editable ? `<button class="lesson-icon-button lesson-menu-trigger" type="button" data-lesson-menu="${escapeHTML(lesson.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${t("edit.menu")}" title="${t("edit.menu")}">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg>
               </button>` : ""}
@@ -329,6 +332,114 @@
     });
 
     applyTranslationSetting();
+  }
+
+  function persistLessonOrder(lessonList) {
+    const lessonIds = $$('[data-lesson-panel]', lessonList).map((panel) => panel.dataset.lessonPanel);
+    const byId = new Map(lessons.map((lesson) => [String(lesson.id), lesson]));
+    const orderedLessons = lessonIds.flatMap((lessonId) => {
+      const lesson = byId.get(String(lessonId));
+      if (!lesson) return [];
+      byId.delete(String(lessonId));
+      return [lesson];
+    });
+    lessons.splice(0, lessons.length, ...orderedLessons, ...byId.values());
+    window.LessonEditor?.reorder?.(lessonIds);
+    renderDynamicControls();
+  }
+
+  function setupLessonReordering() {
+    const lessonList = $("#lesson-list");
+    let activeDrag = null;
+    let suppressHandleClick = false;
+
+    const finishDrag = () => {
+      if (!activeDrag) return;
+      const state = activeDrag;
+      activeDrag = null;
+      try {
+        if (state.handle.hasPointerCapture?.(state.pointerId)) {
+          state.handle.releasePointerCapture(state.pointerId);
+        }
+      } catch (_error) {
+        // Pointer capture is best-effort on older mobile browsers.
+      }
+      state.panel.classList.remove("is-dragging");
+      lessonList.classList.remove("is-reordering");
+      document.body.classList.remove("lesson-is-dragging");
+      if (!state.dragging) return;
+      if (state.wasOpen) state.panel.open = true;
+      persistLessonOrder(lessonList);
+      suppressHandleClick = true;
+      window.setTimeout(() => { suppressHandleClick = false; }, 120);
+    };
+
+    lessonList.addEventListener("click", (event) => {
+      if (!suppressHandleClick || !event.target.closest("[data-lesson-drag-handle]")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressHandleClick = false;
+    }, true);
+
+    lessonList.addEventListener("pointerdown", (event) => {
+      const handle = event.target.closest("[data-lesson-drag-handle]");
+      if (!handle || (event.pointerType === "mouse" && event.button !== 0)) return;
+      const panel = handle.closest("[data-lesson-panel]");
+      if (!panel) return;
+      activeDrag = {
+        handle,
+        panel,
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        dragging: false,
+        wasOpen: panel.open
+      };
+      try { handle.setPointerCapture?.(event.pointerId); } catch (_error) { /* no-op */ }
+    });
+
+    lessonList.addEventListener("pointermove", (event) => {
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+      if (!activeDrag.dragging && Math.abs(event.clientY - activeDrag.startY) < 6) return;
+      if (!activeDrag.dragging) {
+        activeDrag.dragging = true;
+        activeDrag.panel.open = false;
+        activeDrag.panel.classList.add("is-dragging");
+        lessonList.classList.add("is-reordering");
+        document.body.classList.add("lesson-is-dragging");
+      }
+      event.preventDefault();
+
+      const otherPanels = $$('[data-lesson-panel]', lessonList)
+        .filter((panel) => panel !== activeDrag.panel);
+      const beforePanel = otherPanels.find((panel) => {
+        const rect = panel.getBoundingClientRect();
+        return event.clientY < rect.top + rect.height / 2;
+      });
+      if (beforePanel) lessonList.insertBefore(activeDrag.panel, beforePanel);
+      else lessonList.append(activeDrag.panel);
+
+      const edge = 72;
+      if (event.clientY < edge) window.scrollBy(0, -12);
+      else if (event.clientY > window.innerHeight - edge) window.scrollBy(0, 12);
+    });
+
+    lessonList.addEventListener("pointerup", finishDrag);
+    lessonList.addEventListener("pointercancel", finishDrag);
+
+    lessonList.addEventListener("keydown", (event) => {
+      const handle = event.target.closest("[data-lesson-drag-handle]");
+      if (!handle || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+      const panel = handle.closest("[data-lesson-panel]");
+      if (!panel) return;
+      const sibling = event.key === "ArrowUp" ? panel.previousElementSibling : panel.nextElementSibling;
+      if (!sibling?.matches?.("[data-lesson-panel]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "ArrowUp") lessonList.insertBefore(panel, sibling);
+      else lessonList.insertBefore(panel, sibling.nextElementSibling);
+      persistLessonOrder(lessonList);
+      handle.focus();
+    });
   }
 
   function renderFavorites() {
@@ -1024,6 +1135,7 @@
       importedAt: Date.now()
     };
     const saved = window.LessonImporter.saveLesson(lesson);
+    window.LessonEditor?.prepend?.(saved.id);
     keepLessonOpen(saved.id);
   }
 
@@ -1121,6 +1233,7 @@
   function setupLessonImporter() {
     window.LessonImporter?.init({
       onSaved(lesson) {
+        window.LessonEditor?.prepend?.(lesson.id);
         try {
           window.sessionStorage.setItem("hexin-open-imported-lesson", lesson.id);
         } catch (_error) {
@@ -1321,6 +1434,7 @@
     renderFlashcard();
     setupNavigation();
     setupTheme();
+    setupLessonReordering();
     setupLessonControls();
     setupLessonEditor();
     setupCourseExport();

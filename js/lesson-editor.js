@@ -25,6 +25,16 @@
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  function normalizeOrder(value) {
+    const seen = new Set();
+    return (Array.isArray(value) ? value : []).flatMap((lessonId) => {
+      const normalized = String(lessonId || "").trim().slice(0, 100);
+      if (!normalized || seen.has(normalized)) return [];
+      seen.add(normalized);
+      return [normalized];
+    }).slice(0, 2000);
+  }
+
   function isAdmin() {
     return window.CloudAuth?.isAdmin?.() === true;
   }
@@ -96,13 +106,14 @@
   function readState() {
     try {
       const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
-      if (!parsed || typeof parsed !== "object") return { overrides: {}, deleted: [] };
+      if (!parsed || typeof parsed !== "object") return { overrides: {}, deleted: [], order: [] };
       return {
         overrides: parsed.overrides && typeof parsed.overrides === "object" ? parsed.overrides : {},
-        deleted: Array.isArray(parsed.deleted) ? parsed.deleted.map(String) : []
+        deleted: Array.isArray(parsed.deleted) ? parsed.deleted.map(String) : [],
+        order: normalizeOrder(parsed.order)
       };
     } catch (_error) {
-      return { overrides: {}, deleted: [] };
+      return { overrides: {}, deleted: [], order: [] };
     }
   }
 
@@ -126,7 +137,7 @@
       try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryState)); } catch (_error) { /* no-op */ }
     }
     const deleted = new Set(memoryState.deleted || []);
-    return sources.filter((source) => {
+    const preparedLessons = sources.filter((source) => {
       if (source?._public === true && !isAdmin()) return true;
       return !deleted.has(String(source.id));
     }).map((source) => {
@@ -144,6 +155,32 @@
         importedAt: base.importedAt
       });
     });
+
+    const byId = new Map(preparedLessons.map((lesson) => [String(lesson.id), lesson]));
+    const ordered = normalizeOrder(memoryState.order).flatMap((lessonId) => {
+      const lesson = byId.get(lessonId);
+      if (!lesson) return [];
+      byId.delete(lessonId);
+      return [lesson];
+    });
+    return [...ordered, ...byId.values()];
+  }
+
+  function reorder(lessonIds) {
+    memoryState.order = normalizeOrder(lessonIds);
+    writeState();
+    return [...memoryState.order];
+  }
+
+  function prepend(lessonId) {
+    const normalized = String(lessonId || "").trim().slice(0, 100);
+    if (!normalized) return [...normalizeOrder(memoryState.order)];
+    memoryState.order = normalizeOrder([
+      normalized,
+      ...normalizeOrder(memoryState.order)
+    ]);
+    writeState();
+    return [...memoryState.order];
   }
 
   function save(lesson) {
@@ -236,6 +273,7 @@
     const normalizedId = String(lessonId || "");
     if (!normalizedId) return false;
     memoryState.deleted = [...new Set([...(memoryState.deleted || []), normalizedId])];
+    memoryState.order = normalizeOrder(memoryState.order).filter((lessonId) => lessonId !== normalizedId);
     delete memoryState.overrides[normalizedId];
     writeState();
     return true;
@@ -252,6 +290,8 @@
     removeExample,
     addSentence,
     removeSentence,
+    reorder,
+    prepend,
     canEdit,
     forget,
     deleteLesson
