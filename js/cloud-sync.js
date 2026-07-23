@@ -7,6 +7,7 @@
   const CONTENT_TABLE = "site_content";
   const PUBLIC_LESSONS_KEY = "official_lessons";
   const WORKSPACE = window.AccountWorkspace;
+  const SYNC_CORE = window.CloudSyncCore;
   const META_KEY = WORKSPACE?.metaKey || "hexin-cloud-sync-meta:v1";
   const ROLE_KEY = "hexin-auth-role:v1";
   const PRIVATE_LESSON_OWNERS_KEY = "hexin-private-lesson-owners:v1";
@@ -249,10 +250,11 @@
         localRevisionAt: Number(parsed.localRevisionAt) || 0,
         syncedRevisionAt: Number(parsed.syncedRevisionAt) || 0,
         lastSyncedAt: Number(parsed.lastSyncedAt) || 0,
-        lastCloudUpdatedAt: typeof parsed.lastCloudUpdatedAt === "string" ? parsed.lastCloudUpdatedAt : ""
+        lastCloudUpdatedAt: typeof parsed.lastCloudUpdatedAt === "string" ? parsed.lastCloudUpdatedAt : "",
+        lastCloudFingerprint: typeof parsed.lastCloudFingerprint === "string" ? parsed.lastCloudFingerprint : ""
       };
     } catch (_error) {
-      return { userId: "", localRevisionAt: 0, syncedRevisionAt: 0, lastSyncedAt: 0, lastCloudUpdatedAt: "" };
+      return { userId: "", localRevisionAt: 0, syncedRevisionAt: 0, lastSyncedAt: 0, lastCloudUpdatedAt: "", lastCloudFingerprint: "" };
     }
   }
 
@@ -271,7 +273,12 @@
   }
 
   function validSnapshot(value) {
-    return Boolean(value && value.schemaVersion === 1 && value.entries && typeof value.entries === "object");
+    return SYNC_CORE?.validSnapshot?.(value)
+      ?? Boolean(value && value.schemaVersion === 1 && value.entries && typeof value.entries === "object");
+  }
+
+  function snapshotFingerprint(snapshot) {
+    return SYNC_CORE?.snapshotFingerprint?.(snapshot, SYNC_KEYS) || "";
   }
 
   function restoreSnapshot(snapshot) {
@@ -555,10 +562,11 @@
     try {
       const snapshotRevision = readMeta().localRevisionAt;
       const snapshot = readSnapshot();
+      const uploadedAt = new Date().toISOString();
       const result = await client
         .from(TABLE_NAME)
-        .upsert({ user_id: activeUser.id, data: snapshot }, { onConflict: "user_id" })
-        .select("updated_at")
+        .upsert({ user_id: activeUser.id, data: snapshot, updated_at: uploadedAt }, { onConflict: "user_id" })
+        .select("data, updated_at")
         .single();
       if (result.error) throw result.error;
       const now = Date.now();
@@ -567,7 +575,8 @@
         localRevisionAt: readMeta().localRevisionAt,
         syncedRevisionAt: snapshotRevision,
         lastSyncedAt: now,
-        lastCloudUpdatedAt: result.data?.updated_at || new Date(now).toISOString()
+        lastCloudUpdatedAt: result.data?.updated_at || uploadedAt,
+        lastCloudFingerprint: snapshotFingerprint(result.data?.data || snapshot)
       });
       clearConflict();
       updateLastSync();
@@ -592,7 +601,8 @@
         localRevisionAt: now,
         syncedRevisionAt: now,
         lastSyncedAt: now,
-        lastCloudUpdatedAt: row.updated_at || new Date(now).toISOString()
+        lastCloudUpdatedAt: row.updated_at || new Date(now).toISOString(),
+        lastCloudFingerprint: snapshotFingerprint(row.data)
       });
       setStatus(t("downloaded"));
       window.location.reload();
@@ -621,22 +631,39 @@
         setIndicator("error");
         return;
       }
-      const cloudTime = Date.parse(row.updated_at || "") || 0;
-      const knownCloudTime = Date.parse(meta.lastCloudUpdatedAt || "") || 0;
-      const localDirty = meta.localRevisionAt > meta.syncedRevisionAt;
-      const cloudNewer = cloudTime > knownCloudTime + 500;
+      const localSnapshot = readSnapshot();
+      const decision = SYNC_CORE?.decide?.({
+        meta,
+        localSnapshot,
+        cloudSnapshot: row.data,
+        cloudUpdatedAt: row.updated_at,
+        keys: SYNC_KEYS
+      });
 
-      if (localDirty && cloudNewer) {
+      if (!decision || decision.action === "invalid") {
+        throw new Error("INVALID_CLOUD_DATA");
+      }
+
+      if (decision.action === "conflict") {
         showConflict(row);
         setIndicator("error");
-      } else if (localDirty) {
+      } else if (decision.action === "upload") {
         setBusy(false);
         await uploadLocalSnapshot();
         return;
-      } else if (cloudNewer) {
+      } else if (decision.action === "download") {
         applyCloudRow(row);
         return;
       } else {
+        const now = Date.now();
+        writeMeta({
+          ...meta,
+          userId: activeUser.id,
+          syncedRevisionAt: meta.localRevisionAt,
+          lastSyncedAt: now,
+          lastCloudUpdatedAt: row.updated_at || meta.lastCloudUpdatedAt || new Date(now).toISOString(),
+          lastCloudFingerprint: decision.cloudFingerprint
+        });
         setIndicator("online");
         setStatus(t("synced"));
         updateLastSync();
@@ -724,7 +751,10 @@
     writeMeta(meta);
     if (!activeUser) return;
     clearTimeout(uploadTimer);
-    uploadTimer = window.setTimeout(uploadLocalSnapshot, UPLOAD_DELAY_MS);
+    // Always read the cloud row before an automatic upload. Otherwise an old
+    // phone tab could change one local setting and overwrite newer lessons
+    // created on the computer before the user presses “Sync now”.
+    uploadTimer = window.setTimeout(syncNow, UPLOAD_DELAY_MS);
     setIndicator("saving");
     setStatus(t("waitingToSave"));
   }
@@ -1076,7 +1106,10 @@
       rememberInput.checked = persistence.mode === "persistent"
         && persistence.expiresAt > Date.now();
     }
-    $("#account-button").addEventListener("click", () => dialog.showModal());
+    $("#account-button").addEventListener("click", () => {
+      dialog.showModal();
+      if (activeUser && !busy) syncNow();
+    });
     $("#account-dialog-close").addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) dialog.close();
