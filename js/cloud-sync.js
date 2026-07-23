@@ -10,6 +10,8 @@
   const META_KEY = WORKSPACE?.metaKey || "hexin-cloud-sync-meta:v1";
   const ROLE_KEY = "hexin-auth-role:v1";
   const PRIVATE_LESSON_OWNERS_KEY = "hexin-private-lesson-owners:v1";
+  const REMEMBER_LOGIN_KEY = "hexin-auth-remember:v1";
+  const REMEMBER_LOGIN_MS = 30 * 24 * 60 * 60 * 1000;
   const SYNC_KEYS = WORKSPACE?.dataKeys || [
     "hexin-english-learning:v1",
     "hexin-english-imported-lessons:v1",
@@ -31,6 +33,10 @@
   let recoveryMode = false;
   let uploadTimer = 0;
   let busy = false;
+  let authPersistenceMode = "session";
+  let authPersistenceExpiresAt = 0;
+  let authPersistenceInitialized = false;
+  const authStorageKeys = new Set();
 
   function $(selector) {
     return document.querySelector(selector);
@@ -38,6 +44,133 @@
 
   function t(key, variables) {
     return window.SiteI18n?.t?.(`cloud.${key}`, variables) || key;
+  }
+
+  function storageGet(storage, key) {
+    try { return storage?.getItem?.(key) || null; } catch (_error) { return null; }
+  }
+
+  function storageSet(storage, key, value) {
+    try { storage?.setItem?.(key, value); return true; } catch (_error) { return false; }
+  }
+
+  function storageRemove(storage, key) {
+    try { storage?.removeItem?.(key); } catch (_error) { /* no-op */ }
+  }
+
+  function initializeAuthPersistence() {
+    if (authPersistenceInitialized) return;
+    authPersistenceInitialized = true;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(REMEMBER_LOGIN_KEY) || "null");
+      const expiresAt = Number(saved?.expiresAt) || 0;
+      if (saved?.enabled === true && expiresAt > Date.now()) {
+        authPersistenceMode = "persistent";
+        authPersistenceExpiresAt = expiresAt;
+        return;
+      }
+    } catch (_error) {
+      // 无效配置会在下面清理，并退回当前浏览器会话。
+    }
+    storageRemove(window.localStorage, REMEMBER_LOGIN_KEY);
+    authPersistenceMode = "session";
+    authPersistenceExpiresAt = 0;
+  }
+
+  function authPersistenceSnapshot() {
+    initializeAuthPersistence();
+    return { mode: authPersistenceMode, expiresAt: authPersistenceExpiresAt };
+  }
+
+  function prepareAuthPersistence(remember) {
+    initializeAuthPersistence();
+    authPersistenceMode = remember ? "persistent" : "session";
+    authPersistenceExpiresAt = remember ? Date.now() + REMEMBER_LOGIN_MS : 0;
+  }
+
+  function migrateAuthStorage(remember) {
+    for (const key of authStorageKeys) {
+      const localValue = storageGet(window.localStorage, key);
+      const sessionValue = storageGet(window.sessionStorage, key);
+      const value = remember ? (localValue || sessionValue) : (sessionValue || localValue);
+      if (value) {
+        storageSet(remember ? window.localStorage : window.sessionStorage, key, value);
+      }
+      storageRemove(remember ? window.sessionStorage : window.localStorage, key);
+    }
+  }
+
+  function commitAuthPersistence(remember) {
+    prepareAuthPersistence(remember);
+    migrateAuthStorage(remember);
+    if (remember) {
+      storageSet(window.localStorage, REMEMBER_LOGIN_KEY, JSON.stringify({
+        enabled: true,
+        expiresAt: authPersistenceExpiresAt
+      }));
+    } else {
+      storageRemove(window.localStorage, REMEMBER_LOGIN_KEY);
+    }
+  }
+
+  function restoreAuthPersistence(snapshot) {
+    authPersistenceMode = snapshot?.mode === "persistent" ? "persistent" : "session";
+    authPersistenceExpiresAt = Number(snapshot?.expiresAt) || 0;
+  }
+
+  function forgetAuthPersistence() {
+    authPersistenceMode = "session";
+    authPersistenceExpiresAt = 0;
+    storageRemove(window.localStorage, REMEMBER_LOGIN_KEY);
+    migrateAuthStorage(false);
+    for (const key of authStorageKeys) {
+      storageRemove(window.localStorage, key);
+      storageRemove(window.sessionStorage, key);
+    }
+  }
+
+  function createAuthStorage() {
+    initializeAuthPersistence();
+    return {
+      getItem(key) {
+        authStorageKeys.add(key);
+        if (authPersistenceMode === "persistent") {
+          if (authPersistenceExpiresAt > Date.now()) {
+            return storageGet(window.localStorage, key);
+          }
+          authPersistenceMode = "session";
+          authPersistenceExpiresAt = 0;
+          storageRemove(window.localStorage, REMEMBER_LOGIN_KEY);
+          storageRemove(window.localStorage, key);
+          storageRemove(window.sessionStorage, key);
+          return null;
+        }
+
+        const sessionValue = storageGet(window.sessionStorage, key);
+        if (sessionValue) return sessionValue;
+
+        // 旧版本曾把登录状态永久保存在 localStorage。首次升级时只迁移到
+        // 当前标签页，避免用户在未勾选的情况下继续长期自动登录。
+        const legacyValue = storageGet(window.localStorage, key);
+        if (!legacyValue) return null;
+        storageSet(window.sessionStorage, key, legacyValue);
+        storageRemove(window.localStorage, key);
+        return legacyValue;
+      },
+      setItem(key, value) {
+        authStorageKeys.add(key);
+        const persistent = authPersistenceMode === "persistent"
+          && authPersistenceExpiresAt > Date.now();
+        storageSet(persistent ? window.localStorage : window.sessionStorage, key, value);
+        storageRemove(persistent ? window.sessionStorage : window.localStorage, key);
+      },
+      removeItem(key) {
+        authStorageKeys.add(key);
+        storageRemove(window.localStorage, key);
+        storageRemove(window.sessionStorage, key);
+        storageRemove(window.localStorage, REMEMBER_LOGIN_KEY);
+      }
+    };
   }
 
   function readRoleHint() {
@@ -651,6 +784,9 @@
       return;
     }
 
+    const rememberLogin = Boolean($("#account-remember-login")?.checked);
+    const previousPersistence = authPersistenceSnapshot();
+    prepareAuthPersistence(rememberLogin);
     setBusy(true);
     setStatus(t("signingIn"));
     try {
@@ -659,9 +795,11 @@
         password: passwordInput.value
       });
       if (result.error) throw result.error;
+      commitAuthPersistence(rememberLogin);
       passwordInput.value = "";
       await adoptSession(result.data.session);
     } catch (error) {
+      restoreAuthPersistence(previousPersistence);
       setIndicator("error");
       setStatus(friendlyError(error), "error");
     } finally {
@@ -873,6 +1011,9 @@
       setBusy(true);
       const result = await client.auth.signOut();
       if (result.error) throw result.error;
+      forgetAuthPersistence();
+      const rememberInput = $("#account-remember-login");
+      if (rememberInput) rememberInput.checked = false;
       await adoptSession(null);
     } catch (error) {
       setStatus(friendlyError(error), "error");
@@ -898,7 +1039,8 @@
           auth: {
             persistSession: true,
             autoRefreshToken: true,
-            detectSessionInUrl: true
+            detectSessionInUrl: true,
+            storage: createAuthStorage()
           }
         }
       );
@@ -928,6 +1070,12 @@
 
     window.addEventListener("hexin:data-changed", markLocalChange);
     window.addEventListener("storage", markLocalChange);
+    const rememberInput = $("#account-remember-login");
+    if (rememberInput) {
+      const persistence = authPersistenceSnapshot();
+      rememberInput.checked = persistence.mode === "persistent"
+        && persistence.expiresAt > Date.now();
+    }
     $("#account-button").addEventListener("click", () => dialog.showModal());
     $("#account-dialog-close").addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", (event) => {

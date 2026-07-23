@@ -12,7 +12,8 @@ for (const id of [
   "account-recovery",
   "account-settings",
   "account-change-email-form",
-  "account-change-password-form"
+  "account-change-password-form",
+  "account-remember-login"
 ]) {
   assert.match(indexSource, new RegExp(`id=["']${id}["']`), `Missing ${id}`);
 }
@@ -24,6 +25,11 @@ assert.match(authSource, /client\.auth\.signUp\(/);
 assert.match(authSource, /client\.auth\.resetPasswordForEmail\(/);
 assert.match(authSource, /client\.auth\.updateUser\(\{ password:/);
 assert.match(authSource, /client\.auth\.updateUser\(\{\s*email:/);
+assert.match(authSource, /const REMEMBER_LOGIN_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
+assert.match(authSource, /storage: createAuthStorage\(\)/);
+assert.match(authSource, /commitAuthPersistence\(rememberLogin\)/);
+assert.match(authSource, /window\.sessionStorage/);
+assert.match(authSource, /window\.localStorage/);
 assert.doesNotMatch(authSource, /signInWithOtp|verifyOtp/);
 
 console.log("Password authentication markup tests passed.");

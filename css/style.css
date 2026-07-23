@@ -2356,6 +2356,55 @@ body.lesson-is-dragging {
   line-height: 1.6;
 }
 
+.account-remember-option {
+  display: flex;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.account-remember-option:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+.account-remember-option input {
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  accent-color: var(--ink);
+  flex: 0 0 auto;
+}
+
+.account-remember-option input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.account-remember-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-remember-copy strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.account-remember-copy small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .account-subpage-heading {
   display: flex;
   align-items: flex-start;

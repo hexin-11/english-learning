@@ -6,7 +6,7 @@
   <meta name="description" content="何鑫天下第一帅的个人英语学习网站，支持课程点读、单词搜索、单词卡与本地学习进度。">
   <meta name="color-scheme" content="light dark">
   <title>何鑫天下第一帅</title>
-  <link rel="stylesheet" href="css/style.css?v=20260723f">
+  <link rel="stylesheet" href="css/style.css?v=20260723g">
   <script src="data/lessons.js?v=20260722b" defer></script>
   <script src="js/course-privacy.js?v=20260722a" defer></script>
   <script src="js/public-content.js?v=20260722b" defer></script>
@@ -17,11 +17,11 @@
   <script src="js/dictionary.js?v=20260723d" defer></script>
   <script src="js/images.js?v=20260723e" defer></script>
   <script src="js/importer.js?v=20260722s" defer></script>
-  <script src="js/i18n.js?v=20260723f" defer></script>
+  <script src="js/i18n.js?v=20260723g" defer></script>
   <script src="js/profile.js?v=20260722e" defer></script>
   <script src="js/weather.js?v=20260722z" defer></script>
   <script src="js/config.js?v=20260723a" defer></script>
-  <script src="js/cloud-sync.js?v=20260722h" defer></script>
+  <script src="js/cloud-sync.js?v=20260723a" defer></script>
   <script src="js/admin.js?v=20260722c" defer></script>
   <script src="js/agent-tools.js?v=20260723b" defer></script>
   <script src="js/agent.js?v=20260723g" defer></script>
@@ -740,6 +740,13 @@
           <label class="editor-field">
             <span data-i18n="cloud.password">密码</span>
             <input id="account-login-password" type="password" minlength="8" maxlength="72" autocomplete="current-password" required>
+          </label>
+          <label class="account-remember-option" for="account-remember-login">
+            <input id="account-remember-login" type="checkbox">
+            <span class="account-remember-copy">
+              <strong data-i18n="cloud.rememberLogin">30 天内自动登录</strong>
+              <small data-i18n="cloud.rememberLoginHint">仅建议在自己的手机或电脑上勾选。</small>
+            </span>
           </label>
           <p class="account-auth-hint" data-i18n="cloud.loginHint">注册并验证邮箱后，之后直接使用密码登录。</p>
           <div class="account-auth-actions">
