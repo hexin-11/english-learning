@@ -638,12 +638,18 @@
       ? result.phonetics.map((phonetic) => `<span>${escapeHTML(phonetic)}</span>`).join("")
       : '<span class="dictionary-muted">暂未返回音标</span>';
     const translation = result.translation
-      ? `<p class="dictionary-translation"><span>中文直译</span><strong>${escapeHTML(result.translation)}</strong></p>`
-      : '<p class="dictionary-translation dictionary-muted">在线翻译暂未返回中文结果</p>';
+      ? `<p class="dictionary-translation"><span>常见中文释义</span><strong>${escapeHTML(result.translation)}</strong></p>`
+      : '<p class="dictionary-translation dictionary-muted">中文概括暂未返回，请查看下面按词性整理的释义。</p>';
     const meaningsMarkup = lexicalMeaningsMarkup(result.meanings, "dictionary");
     const meanings = meaningsMarkup
       ? meaningsMarkup
-      : '<p class="dictionary-muted dictionary-no-definition">暂未返回英文词典释义，但仍可查看中文直译和朗读。</p>';
+      : '<p class="dictionary-muted dictionary-no-definition">这是短语翻译结果，暂时没有可按词性拆分的词典释义。</p>';
+    const resolvedNotice = result.resolvedFrom
+      ? `<p class="dictionary-resolved">已自动按原形 <strong lang="en">${escapeHTML(result.word)}</strong> 查询；你输入的是 <span lang="en">${escapeHTML(result.resolvedFrom)}</span>。</p>`
+      : "";
+    const sourceLine = result.source === "translation"
+      ? "短语翻译来自 MyMemory"
+      : `词条与词性来自 ${result.source === "datamuse" ? "Datamuse" : "Free Dictionary API"} · 中文释义来自 MyMemory`;
 
     $("#online-dictionary-content").innerHTML = `
       <article class="dictionary-entry">
@@ -657,10 +663,23 @@
             <button type="button" data-speak="${escapeHTML(result.word)}" data-speech-accent="en-GB">英式朗读</button>
           </div>
         </div>
+        ${resolvedNotice}
         ${translation}
         <div class="dictionary-meanings">${meanings}</div>
-        <p class="dictionary-source">英文释义来自 Free Dictionary API · 中文直译来自 MyMemory</p>
+        <p class="dictionary-source">${sourceLine}</p>
       </article>
+    `;
+  }
+
+  function dictionarySuggestionsMarkup(suggestions) {
+    if (!Array.isArray(suggestions) || !suggestions.length) return "";
+    return `
+      <div class="dictionary-suggestions">
+        <span>你是不是想查：</span>
+        <div>${suggestions.map((word) => `
+          <button type="button" data-dictionary-suggestion="${escapeHTML(word)}" lang="en">${escapeHTML(word)}</button>
+        `).join("")}</div>
+      </div>
     `;
   }
 
@@ -670,14 +689,30 @@
     onlineSearchController = null;
     const sequence = ++onlineSearchSequence;
 
-    if (!window.OnlineDictionary?.isSupportedQuery(query)) {
-      $("#online-dictionary").hidden = true;
-      $("#online-dictionary-content").replaceChildren();
+    $("#online-dictionary").hidden = false;
+
+    if (!query) {
       $("#online-dictionary-status").textContent = "";
+      $("#online-dictionary-content").innerHTML = `
+        <div class="dictionary-welcome">
+          <strong>输入一个英文单词开始查询</strong>
+          <p>会优先显示精确词条，并补充音标、词性、多种含义、中文释义和例句。</p>
+        </div>
+      `;
       return;
     }
 
-    $("#online-dictionary").hidden = false;
+    if (!window.OnlineDictionary?.isSupportedQuery(query)) {
+      $("#online-dictionary-status").textContent = "格式不支持";
+      $("#online-dictionary-content").innerHTML = `
+        <div class="dictionary-error">
+          <strong>请输入英文单词或英文短语</strong>
+          <p>目前在线词典不接受中文、数字或特殊符号。</p>
+        </div>
+      `;
+      return;
+    }
+
     $("#online-dictionary-status").textContent = "等待查询";
     $("#online-dictionary-content").innerHTML = `
       <div class="dictionary-loading" role="status">
@@ -704,11 +739,13 @@
       } catch (error) {
         if (error.name === "AbortError" || sequence !== onlineSearchSequence) return;
         const notFound = error.code === "NOT_FOUND";
-        $("#online-dictionary-status").textContent = notFound ? "没有收录" : "连接失败";
+        const invalid = error.code === "INVALID_QUERY";
+        $("#online-dictionary-status").textContent = notFound ? "没有收录" : (invalid ? "格式不支持" : "连接失败");
         $("#online-dictionary-content").innerHTML = `
           <div class="dictionary-error">
-            <strong>${notFound ? "在线词典也没有找到这个词" : "暂时无法连接在线词典"}</strong>
-            <p>${notFound ? "请检查拼写，或尝试单词的原形。" : "请检查网络后重新输入；课程词库搜索仍可正常使用。"}</p>
+            <strong>${notFound ? "没有找到精确词条" : (invalid ? "请输入完整的英文单词" : "暂时无法连接在线词典")}</strong>
+            <p>${notFound ? "请检查拼写，或从下面的建议中选择。" : (invalid ? "可使用英文字母、空格、连字符和撇号。" : "请检查网络后稍后重试。")}</p>
+            ${dictionarySuggestionsMarkup(error.suggestions)}
           </div>
         `;
       }
@@ -716,59 +753,9 @@
   }
 
   function renderSearch(query) {
-    const normalizedQuery = String(query || "").trim().toLocaleLowerCase("zh-CN");
-    const resultsContainer = $("#search-results");
-    const meta = $("#search-meta");
+    const normalizedQuery = window.OnlineDictionary?.normalizeQuery(query) || String(query || "").trim();
     $("#clear-search").hidden = !normalizedQuery;
     scheduleOnlineDictionary(normalizedQuery);
-
-    if (!normalizedQuery) {
-      meta.textContent = "输入英文或中文开始搜索";
-      resultsContainer.innerHTML = `
-        <div class="empty-state">
-          <div>
-            <strong>查找想学的单词</strong>
-            <p>可搜索课程内的中英文，也可以输入任意英文单词进行在线查询。</p>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    const matches = allWords.filter((word) => {
-      return word.english.toLocaleLowerCase("en").includes(normalizedQuery)
-        || word.chinese.toLocaleLowerCase("zh-CN").includes(normalizedQuery);
-    });
-
-    meta.textContent = matches.length ? `课程词库找到 ${matches.length} 个结果` : "课程词库中没有找到匹配项";
-
-    if (!matches.length) {
-      resultsContainer.innerHTML = `
-        <div class="empty-state">
-          <div>
-            <strong>课程词库中没有这个词</strong>
-            <p>${window.OnlineDictionary?.isSupportedQuery(normalizedQuery) ? "正在继续查询下方在线词典。" : "可尝试完整英文单词，或更短的中文关键词。"}</p>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    resultsContainer.innerHTML = matches.map((word) => `
-      <article class="search-result">
-        <button class="search-result-main" type="button" data-speak="${escapeHTML(word.english)}" data-lesson-id="${word.lessonId}">
-          <span class="search-word-block">
-            <span class="search-english">${escapeHTML(word.english)}</span>
-            <span class="ipa">${escapeHTML(word.ipa)}</span>
-          </span>
-          <span class="translation">${escapeHTML(word.chinese)}</span>
-          <span class="result-lesson">${escapeHTML(word.lessonTitle)}</span>
-        </button>
-        <button class="favorite-result" type="button" data-result-favorite="${word.id}" aria-pressed="${isFavorite(word.id)}">
-          ${isFavorite(word.id) ? "已收藏" : "收藏"}
-        </button>
-      </article>
-    `).join("");
   }
 
   function setCardFlipped(flipped) {
@@ -1408,10 +1395,12 @@
       searchInput.focus();
     });
 
-    $("#search-results").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-result-favorite]");
+    $("#online-dictionary-content").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-dictionary-suggestion]");
       if (!button) return;
-      toggleWordFavorite(button.dataset.resultFavorite);
+      searchInput.value = button.dataset.dictionarySuggestion;
+      renderSearch(searchInput.value);
+      searchInput.focus();
     });
   }
 

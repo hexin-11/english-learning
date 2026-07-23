@@ -2685,78 +2685,6 @@ body.lesson-is-dragging {
   font-size: 12px;
 }
 
-.search-meta {
-  min-height: 40px;
-  padding: 13px 2px 7px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.search-results {
-  display: grid;
-  gap: 8px;
-}
-
-.search-result {
-  display: flex;
-  overflow: hidden;
-  min-height: 92px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  align-items: stretch;
-}
-
-.search-result-main {
-  display: grid;
-  min-width: 0;
-  flex: 1;
-  padding: 17px 20px;
-  border: 0;
-  background: transparent;
-  align-items: center;
-  cursor: pointer;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
-  gap: 20px;
-  text-align: left;
-}
-
-.search-result-main:hover {
-  background: var(--surface-soft);
-}
-
-.search-word-block {
-  display: grid;
-}
-
-.search-english {
-  font-size: 17px;
-  font-weight: 650;
-}
-
-.search-result .ipa,
-.search-result .translation,
-.result-lesson {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.favorite-result {
-  min-width: 82px;
-  border: 0;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.favorite-result:hover,
-.favorite-result[aria-pressed="true"] {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-
 .online-dictionary {
   margin-top: 28px;
   padding: 24px;
@@ -2821,6 +2749,64 @@ body.lesson-is-dragging {
 
 .dictionary-error strong {
   font-size: 14px;
+}
+
+.dictionary-welcome {
+  display: grid;
+  min-height: 150px;
+  padding: 30px;
+  place-content: center;
+  text-align: center;
+}
+
+.dictionary-welcome strong {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.dictionary-welcome p,
+.dictionary-resolved {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.dictionary-resolved {
+  padding: 10px 12px;
+  border-left: 2px solid var(--ink);
+  background: var(--surface-soft);
+}
+
+.dictionary-suggestions {
+  display: grid;
+  margin-top: 18px;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dictionary-suggestions > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+
+.dictionary-suggestions button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.dictionary-suggestions button:hover {
+  border-color: var(--ink);
+  background: var(--surface-hover);
 }
 
 .dictionary-entry {
@@ -5310,15 +5296,6 @@ html[data-theme="dark"] .agent-launcher img {
 
   .lesson-editor-form {
     padding: 21px 18px;
-  }
-
-  .search-result-main {
-    grid-template-columns: 1fr;
-    gap: 5px;
-  }
-
-  .result-lesson {
-    margin-top: 5px;
   }
 
   .online-dictionary {

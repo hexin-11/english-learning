@@ -319,30 +319,32 @@
       <div class="page-heading">
         <span class="eyebrow">WORD FINDER</span>
         <h1 id="search-title" data-i18n="search.title">单词搜索</h1>
-        <p data-i18n="search.description">课程词汇支持中英文搜索；课程外的英文单词会继续查询在线词典。</p>
+        <p data-i18n="search.description">查询任意英文单词，查看音标、词性、多种含义、中文释义和例句。</p>
       </div>
 
       <div class="search-box panel">
-        <label for="search-input" id="search-label" data-i18n="search.label">搜索全部课程内容，或查询任意英文单词</label>
+        <label for="search-input" id="search-label" data-i18n="search.label">在线查询英文单词或短语</label>
         <div class="search-input-wrap">
           <span aria-hidden="true">Aa</span>
-          <input id="search-input" type="search" autocomplete="off" spellcheck="false" placeholder="例如：junction、serendipity、郊区" data-i18n-placeholder="search.placeholder">
+          <input id="search-input" type="search" autocomplete="off" spellcheck="false" placeholder="例如：available、coding、serendipity" data-i18n-placeholder="search.placeholder">
           <button id="clear-search" class="clear-search" type="button" data-i18n="search.clear" aria-label="清空搜索" hidden>清空</button>
         </div>
       </div>
-      <div class="search-meta" id="search-meta" aria-live="polite"></div>
-      <div id="search-results" class="search-results"></div>
-
-      <section class="online-dictionary panel" id="online-dictionary" aria-labelledby="online-dictionary-title" hidden>
+      <section class="online-dictionary panel" id="online-dictionary" aria-labelledby="online-dictionary-title">
         <div class="online-dictionary-heading">
           <div>
             <span class="eyebrow">ONLINE DICTIONARY</span>
-            <h2 id="online-dictionary-title">在线词典</h2>
+            <h2 id="online-dictionary-title">在线英汉词典</h2>
           </div>
           <span class="online-dictionary-status" id="online-dictionary-status" aria-live="polite"></span>
         </div>
-        <div id="online-dictionary-content"></div>
-        <p class="online-dictionary-note">在线查询会把输入的英文发送至第三方词典与翻译服务；课程词库搜索仍完全在本机完成。</p>
+        <div id="online-dictionary-content">
+          <div class="dictionary-welcome">
+            <strong>输入一个英文单词开始查询</strong>
+            <p>会优先显示精确词条，并补充音标、词性、多种含义、中文释义和例句。</p>
+          </div>
+        </div>
+        <p class="online-dictionary-note">在线查询会把输入的英文发送至第三方词典、拼写建议与翻译服务。</p>
       </section>
     </section>
 

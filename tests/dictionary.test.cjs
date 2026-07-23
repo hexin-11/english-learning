@@ -51,6 +51,16 @@ async function fetchMock(url) {
   if (url.includes("dictionaryapi.dev")) {
     return { ok: true, json: async () => dictionaryPayload };
   }
+  if (url.includes("api.datamuse.com")) {
+    return {
+      ok: true,
+      json: async () => [{
+        word: "coding",
+        defs: ["n\tThe process of writing software programs."],
+        tags: ["n", "pron:ˈkoʊdɪŋ"]
+      }]
+    };
+  }
   const query = new URL(url).searchParams.get("q");
   const translatedText = query === "coding"
     ? "编码；编程"
@@ -84,12 +94,48 @@ vm.runInNewContext(source, sandbox, { filename: "dictionary.js" });
   assert.equal(result.meanings[1].definitions.length, 2);
   assert.ok(result.meanings.every((meaning) => meaning.definitions.every((definition) => definition.chinese)));
   assert.equal(result.meanings[0].definitions[0].chinese, "编写软件程序。");
-  assert.match(values.get("hexin-english-dictionary-cache:v2"), /编写软件程序/);
+  assert.match(values.get("hexin-english-dictionary-cache:v3"), /编写软件程序/);
 
   const requestCount = requests.length;
   const cached = await sandbox.window.OnlineDictionary.lookup("coding");
   assert.equal(cached.fromCache, true);
   assert.equal(requests.length, requestCount, "Cached lookups should not repeat network requests");
+
+  sandbox.fetch = async (url) => {
+    if (url.includes("dictionaryapi.dev/api/v2/entries/en/studies")) return { ok: false, status: 404, json: async () => ({}) };
+    if (url.includes("dictionaryapi.dev/api/v2/entries/en/study")) {
+      return {
+        ok: true,
+        json: async () => [{
+          word: "study",
+          phonetic: "/ˈstʌdi/",
+          meanings: [{ partOfSpeech: "verb", definitions: [{ definition: "To learn about a subject." }] }]
+        }]
+      };
+    }
+    if (url.includes("api.datamuse.com")) {
+      return { ok: true, json: async () => [{ word: "studies", defHeadword: "study" }, { word: "study" }] };
+    }
+    const query = new URL(url).searchParams.get("q");
+    return { ok: true, json: async () => ({ responseData: { translatedText: query === "study" ? "学习" : `中文：${query}` } }) };
+  };
+  const inflected = await sandbox.window.OnlineDictionary.lookup("studies");
+  assert.equal(inflected.word, "study", "Inflected forms should resolve to a verified base-form dictionary entry");
+  assert.equal(inflected.resolvedFrom, "studies");
+  assert.equal(inflected.translation, "学习");
+
+  sandbox.fetch = async (url) => {
+    if (url.includes("dictionaryapi.dev")) return { ok: false, status: 404, json: async () => ({}) };
+    if (url.includes("api.datamuse.com")) {
+      return { ok: true, json: async () => [{ word: "available" }, { word: "availability" }] };
+    }
+    return { ok: true, json: async () => ({ responseData: { translatedText: "错误的翻译" } }) };
+  };
+  await assert.rejects(
+    sandbox.window.OnlineDictionary.lookup("availaable"),
+    (error) => error.code === "NOT_FOUND" && error.suggestions.includes("available"),
+    "Misspellings should offer candidates instead of presenting a translation-only result"
+  );
 
   for (const id of ["word-popover-status", "word-popover-senses", "card-meanings", "card-lexical-status"]) {
     assert.match(indexSource, new RegExp(`id=["']${id}["']`), `Missing ${id}`);
@@ -102,6 +148,9 @@ vm.runInNewContext(source, sandbox, { filename: "dictionary.js" });
   assert.match(styleSource, /width:\s*min\(360px, calc\(100vw - 24px\)\)/);
   assert.match(styleSource, /max-height:\s*min\(480px, calc\(100dvh - 24px\)\)/);
   assert.match(styleSource, /overscroll-behavior:\s*contain/);
+  assert.doesNotMatch(indexSource, /id=["']search-results["']/);
+  assert.doesNotMatch(appSource, /课程词库/);
+  assert.match(appSource, /data-dictionary-suggestion/);
 
   console.log("Dictionary meanings and parts-of-speech tests passed.");
 })().catch((error) => {
