@@ -16,6 +16,8 @@ assert.equal(health.ok, true);
 assert.equal(health.runtime, "cloudflare-worker");
 assert.equal(health.configured, true);
 assert.equal(health.capabilities.vision, true);
+assert.equal(health.capabilities.tools, true);
+assert.equal(health.capabilities.approvals, true);
 
 const blockedResponse = await worker.fetch(new Request("https://worker.test/health", {
   headers: { Origin: "https://malicious.example" }
@@ -67,6 +69,51 @@ try {
   assert.equal(upstreamRequest.options.headers["x-goog-api-key"], "test-secret");
   const upstreamBody = JSON.parse(upstreamRequest.options.body);
   assert.equal(upstreamBody.contents.at(-1).parts[0].text, "Hi");
+  assert.ok(upstreamBody.tools[0].functionDeclarations.length >= 8);
+  assert.ok(upstreamBody.tools[0].functionDeclarations.some((tool) => tool.name === "create_presentation"));
+  assert.equal(upstreamBody.toolConfig.functionCallingConfig.mode, "AUTO");
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{
+      functionCall: { id: "call-1", name: "get_lesson_detail", args: { lesson: "第三课" } }
+    }] } }]
+  }), { status: 200, headers: { "x-goog-request-id": "tool-request" } });
+  const toolResponse = await worker.fetch(new Request("https://worker.test/api/chat", {
+    method: "POST",
+    headers: { ...allowedHeaders, "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.8" },
+    body: JSON.stringify({
+      message: "总结第三课",
+      history: [],
+      context: { lessonIndex: [{ id: "lesson-3", title: "第三课" }] }
+    })
+  }), env);
+  const toolPayload = await toolResponse.json();
+  assert.equal(toolPayload.reply, "");
+  assert.equal(toolPayload.toolCalls[0].name, "get_lesson_detail");
+  assert.equal(toolPayload.toolCalls[0].args.lesson, "第三课");
+
+  let continuationBody;
+  globalThis.fetch = async (_url, options) => {
+    continuationBody = JSON.parse(options.body);
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "第三课共有 12 个单词。" }] } }]
+    }), { status: 200 });
+  };
+  const continuationResponse = await worker.fetch(new Request("https://worker.test/api/chat", {
+    method: "POST",
+    headers: { ...allowedHeaders, "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.9" },
+    body: JSON.stringify({
+      message: "总结第三课",
+      history: [],
+      trace: [{
+        calls: toolPayload.toolCalls,
+        results: [{ id: "call-1", name: "get_lesson_detail", result: { ok: true, lesson: { wordCount: 12 } } }]
+      }]
+    })
+  }), env);
+  const continuation = await continuationResponse.json();
+  assert.equal(continuation.reply, "第三课共有 12 个单词。");
+  assert.equal(continuationBody.contents.at(-1).parts[0].functionResponse.name, "get_lesson_detail");
 } finally {
   globalThis.fetch = originalFetch;
 }

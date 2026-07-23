@@ -1,4 +1,12 @@
 import { AGENT_PROMPT } from "./prompt.mjs";
+import {
+  agentContextPart,
+  agentToolConfig,
+  appendToolTrace,
+  cleanAgentContext,
+  cleanToolTrace,
+  extractToolCalls
+} from "./tools.mjs";
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const MESSAGE_LIMIT = 2000;
@@ -151,16 +159,17 @@ function outputText(payload) {
   return cleanAssistantText(text);
 }
 
-export function geminiContents(history, message, image) {
-  const latestParts = [{ text: message }];
+export function geminiContents(history, message, image, context = {}, trace = []) {
+  const latestParts = [{ text: `${message}${agentContextPart(context)}` }];
   if (image) latestParts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
-  return [
+  const contents = [
     ...history.map((item) => ({
       role: item.role === "assistant" ? "model" : "user",
       parts: [{ text: item.content }]
     })),
     { role: "user", parts: latestParts }
   ];
+  return appendToolTrace(contents, trace);
 }
 
 function publicError(code, statusCode, upstreamStatus = 0) {
@@ -174,7 +183,7 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function createAgentReply(env, message, history, image) {
+async function createAgentReply(env, message, history, image, context, trace) {
   const model = String(env.GEMINI_MODEL || "gemini-flash-latest").trim();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -189,7 +198,8 @@ async function createAgentReply(env, message, history, image) {
         },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: AGENT_PROMPT }] },
-          contents: geminiContents(history, message, image),
+          contents: geminiContents(history, message, image, context, trace),
+          ...agentToolConfig(),
           generationConfig: {
             maxOutputTokens: 900,
             temperature: 0.7,
@@ -201,6 +211,8 @@ async function createAgentReply(env, message, history, image) {
       const requestId = response.headers.get("x-request-id") || response.headers.get("x-goog-request-id") || "unavailable";
       const payload = await response.json().catch(() => ({}));
       if (response.ok) {
+        const toolCalls = extractToolCalls(payload);
+        if (toolCalls.length) return { toolCalls, requestId, model };
         const reply = outputText(payload);
         if (!reply) throw publicError("EMPTY_RESPONSE", 502, response.status);
         return { reply, requestId, model };
@@ -268,7 +280,7 @@ export async function handleRequest(request, env) {
       provider: "gemini",
       model,
       configured: Boolean(String(env.GEMINI_API_KEY || "").trim()),
-      capabilities: { text: true, vision: true }
+      capabilities: { text: true, vision: true, tools: true, planning: true, approvals: true }
     }, 200, cors);
   }
   if (request.method !== "POST" || url.pathname !== "/api/chat") return json({ error: "NOT_FOUND" }, 404, cors);
@@ -284,9 +296,17 @@ export async function handleRequest(request, env) {
     const image = cleanImage(body.image);
     const message = cleanMessage(body.message) || (image ? "请仔细识别这张图片，并结合英语学习给出准确、简洁的说明。" : "");
     const history = cleanHistory(body.history);
+    const context = cleanAgentContext(body.context);
+    const trace = cleanToolTrace(body.trace);
     if (!message) return json({ error: "EMPTY_MESSAGE", message: "请输入想对小何说的话。" }, 400, cors);
-    const result = await createAgentReply(env, message, history, image);
-    return json({ reply: result.reply, provider: "gemini", model: result.model, requestId: result.requestId }, 200, cors);
+    const result = await createAgentReply(env, message, history, image, context, trace);
+    return json({
+      reply: result.reply || "",
+      toolCalls: result.toolCalls || [],
+      provider: "gemini",
+      model: result.model,
+      requestId: result.requestId
+    }, 200, cors);
   } catch (error) {
     console.error("Worker request failed", { code: error?.message || "SERVER_ERROR", status: error?.statusCode || 500 });
     return errorResponse(error, cors);

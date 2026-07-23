@@ -1,0 +1,401 @@
+(function () {
+  "use strict";
+
+  const MUTATING_TOOLS = new Set([
+    "create_lesson",
+    "edit_lesson",
+    "delete_lesson",
+    "update_word_state",
+    "export_lesson",
+    "create_presentation"
+  ]);
+  const VALID_VIEWS = new Set(["home", "lessons", "search", "favorites", "flashcards", "spelling"]);
+  const PPTXGEN_URL = "https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js";
+  let pptxPromise = null;
+  let reloadRequested = false;
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function cleanText(value, limit = 500) {
+    return String(value || "").trim().slice(0, limit);
+  }
+
+  function lessonSources() {
+    const publicLessons = Array.isArray(window.ENGLISH_LESSONS) ? window.ENGLISH_LESSONS : [];
+    const ownerLessons = window.CoursePrivacy?.ownerLessonsForActiveAccount?.() || [];
+    const baseLessons = [...publicLessons, ...ownerLessons];
+    const baseIds = new Set(baseLessons.map((lesson) => String(lesson.id)));
+    const imported = window.LessonImporter?.getLessons?.() || [];
+    return [
+      ...baseLessons,
+      ...imported.filter((lesson) => !baseIds.has(String(lesson.id)))
+    ].sort((left, right) => Number(left.number) - Number(right.number));
+  }
+
+  function lessons() {
+    const sources = lessonSources();
+    return window.LessonEditor?.apply?.(sources) || clone(sources);
+  }
+
+  function findLesson(reference) {
+    const query = cleanText(reference, 180).toLocaleLowerCase();
+    if (!query) return null;
+    return lessons().find((lesson) => {
+      const id = String(lesson.id || "").toLocaleLowerCase();
+      const title = String(lesson.title || "").toLocaleLowerCase();
+      const number = String(lesson.number || "");
+      return id === query || title === query || number === query || title.includes(query);
+    }) || null;
+  }
+
+  function lessonSummary(lesson) {
+    return {
+      id: String(lesson.id || ""),
+      number: Number(lesson.number) || 0,
+      title: cleanText(lesson.title, 180),
+      wordCount: Array.isArray(lesson.words) ? lesson.words.length : 0,
+      sentenceCount: Array.isArray(lesson.sentences) ? lesson.sentences.length : 0,
+      noteCount: Array.isArray(lesson.studyNotes) ? lesson.studyNotes.length : 0,
+      editable: window.LessonEditor?.canEdit?.(lesson) === true
+    };
+  }
+
+  function allWords() {
+    return lessons().flatMap((lesson) => (lesson.words || []).map((word, index) => ({
+      ...word,
+      id: `${lesson.id}:${word._id || index}`,
+      lessonId: lesson.id,
+      lessonTitle: lesson.title
+    })));
+  }
+
+  function learningOverview() {
+    const lessonList = lessons();
+    const words = allWords();
+    const state = window.LearningStorage?.getState?.() || {};
+    return {
+      lessons: lessonList.length,
+      words: words.length,
+      mastered: state.mastered?.length || 0,
+      review: state.review?.length || 0,
+      favorites: state.favorites?.length || 0,
+      recentLessons: (state.recentLessons || []).slice(0, 5),
+      currentPage: window.location.hash.slice(1) || "home",
+      signedIn: Boolean(window.CloudAuth?.getState?.()?.user)
+    };
+  }
+
+  function context() {
+    return {
+      overview: learningOverview(),
+      lessonIndex: lessons().map(lessonSummary).slice(0, 60)
+    };
+  }
+
+  function lessonDetail(reference) {
+    const lesson = findLesson(reference);
+    if (!lesson) return { ok: false, error: "LESSON_NOT_FOUND" };
+    return {
+      ok: true,
+      lesson: {
+        ...lessonSummary(lesson),
+        words: (lesson.words || []).slice(0, 200).map((word) => ({
+          english: cleanText(word.english, 160),
+          ipa: cleanText(word.ipa, 160),
+          chinese: cleanText(word.chinese, 300)
+        })),
+        sentences: (lesson.sentences || []).slice(0, 120).map((sentence) => ({
+          english: cleanText(sentence.english, 1200),
+          chinese: cleanText(sentence.chinese, 1200)
+        })),
+        notes: (lesson.studyNotes || []).slice(0, 40).map((note) => ({
+          title: cleanText(note.title, 180),
+          description: cleanText(note.description, 600),
+          structures: (note.structures || []).slice(0, 20).map((item) => cleanText(item, 300))
+        }))
+      }
+    };
+  }
+
+  function searchCourse(query) {
+    const normalized = cleanText(query, 120).toLocaleLowerCase();
+    if (!normalized) return { ok: false, error: "EMPTY_QUERY" };
+    const wordMatches = allWords().filter((word) => {
+      return String(word.english || "").toLocaleLowerCase().includes(normalized)
+        || String(word.chinese || "").includes(normalized);
+    }).slice(0, 30).map((word) => ({
+      lessonId: word.lessonId,
+      lessonTitle: word.lessonTitle,
+      english: word.english,
+      ipa: word.ipa,
+      chinese: word.chinese
+    }));
+    const sentenceMatches = lessons().flatMap((lesson) => (lesson.sentences || []).flatMap((sentence) => {
+      const matched = String(sentence.english || "").toLocaleLowerCase().includes(normalized)
+        || String(sentence.chinese || "").includes(normalized);
+      return matched ? [{ lessonId: lesson.id, lessonTitle: lesson.title, english: sentence.english, chinese: sentence.chinese }] : [];
+    })).slice(0, 20);
+    return { ok: true, words: wordMatches, sentences: sentenceMatches };
+  }
+
+  function nextLessonNumber() {
+    return Math.max(0, ...lessonSources().map((lesson) => Number(lesson.number) || 0)) + 1;
+  }
+
+  function createLesson(args) {
+    if (!window.LessonImporter?.saveLesson) return { ok: false, error: "IMPORTER_UNAVAILABLE" };
+    const number = nextLessonNumber();
+    const title = cleanText(args.title, 180) || `第${number}课`;
+    const lesson = {
+      id: `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      number,
+      title,
+      wordSectionTitle: "单词与短语",
+      readingTitle: "文章与例句",
+      words: (Array.isArray(args.words) ? args.words : []).slice(0, 80).map((word) => ({
+        english: cleanText(word?.english, 160),
+        ipa: cleanText(word?.ipa, 160) || "/音标待补充/",
+        chinese: cleanText(word?.chinese, 300) || "中文释义待补充"
+      })).filter((word) => word.english),
+      sentences: (Array.isArray(args.sentences) ? args.sentences : []).slice(0, 80).map((sentence) => ({
+        english: cleanText(sentence?.english, 1200),
+        chinese: cleanText(sentence?.chinese, 1200) || "中文翻译待补充"
+      })).filter((sentence) => sentence.english),
+      imported: true,
+      manual: true,
+      sourceName: "小何 Agent",
+      importedAt: Date.now()
+    };
+    const saved = window.LessonImporter.saveLesson(lesson);
+    window.LessonEditor?.prepend?.(saved.id);
+    reloadRequested = true;
+    return { ok: true, lesson: lessonSummary(saved), message: "课程已创建并放到课程列表最前面。" };
+  }
+
+  function editLesson(args) {
+    const lesson = findLesson(args.lesson);
+    if (!lesson) return { ok: false, error: "LESSON_NOT_FOUND" };
+    if (!window.LessonEditor?.canEdit?.(lesson)) return { ok: false, error: "LESSON_READ_ONLY" };
+    const operation = cleanText(args.operation, 40);
+    let saved;
+    if (operation === "rename") saved = window.LessonEditor.rename(lesson, cleanText(args.title, 180));
+    else if (operation === "add_word") saved = window.LessonEditor.addWord(lesson, {
+      english: cleanText(args.english, 160),
+      ipa: cleanText(args.ipa, 160) || "/音标待补充/",
+      chinese: cleanText(args.chinese, 300) || "中文释义待补充"
+    });
+    else if (operation === "add_sentence") saved = window.LessonEditor.addSentence(lesson, {
+      english: cleanText(args.english, 1200),
+      chinese: cleanText(args.chinese, 1200) || "中文翻译待补充"
+    });
+    else return { ok: false, error: "INVALID_OPERATION" };
+    reloadRequested = true;
+    return { ok: true, lesson: lessonSummary(saved), operation };
+  }
+
+  function deleteLesson(args) {
+    const lesson = findLesson(args.lesson);
+    if (!lesson) return { ok: false, error: "LESSON_NOT_FOUND" };
+    if (!window.LessonEditor?.canEdit?.(lesson)) return { ok: false, error: "LESSON_READ_ONLY" };
+    if (lesson.imported) window.LessonImporter?.deleteLesson?.(lesson.id);
+    window.LessonEditor?.deleteLesson?.(lesson.id, lesson);
+    reloadRequested = true;
+    return { ok: true, deleted: lessonSummary(lesson) };
+  }
+
+  function updateWordState(args) {
+    const query = cleanText(args.word, 160).toLocaleLowerCase();
+    const word = allWords().find((item) => String(item.english || "").toLocaleLowerCase() === query);
+    if (!word) return { ok: false, error: "WORD_NOT_FOUND" };
+    const action = cleanText(args.action, 40);
+    const state = window.LearningStorage?.getState?.() || {};
+    if (action === "favorite") {
+      if (!state.favorites?.includes(word.id)) window.LearningStorage.toggleFavorite(word.id);
+    } else if (action === "unfavorite") {
+      if (state.favorites?.includes(word.id)) window.LearningStorage.toggleFavorite(word.id);
+    } else if (action === "mastered") {
+      if (!state.mastered?.includes(word.id)) window.LearningStorage.setWordStatus(word.id, "mastered");
+    } else if (action === "review") {
+      if (!state.review?.includes(word.id)) window.LearningStorage.setWordStatus(word.id, "review");
+    } else return { ok: false, error: "INVALID_ACTION" };
+    return { ok: true, word: word.english, lesson: word.lessonTitle, action };
+  }
+
+  function navigate(args) {
+    const view = cleanText(args.page, 40);
+    if (!VALID_VIEWS.has(view)) return { ok: false, error: "INVALID_PAGE" };
+    window.location.hash = view;
+    return { ok: true, page: view };
+  }
+
+  async function exportLesson(args) {
+    const format = cleanText(args.format, 20).toLocaleLowerCase();
+    const lesson = findLesson(args.lesson);
+    const selected = lesson ? [lesson] : lessons();
+    if (!selected.length) return { ok: false, error: "LESSON_NOT_FOUND" };
+    if (format === "pdf") await window.CourseExporter.exportPdf(selected, window.LearningStorage.getState(), lesson?.title || "英语课程与学习记录");
+    else if (format === "word") window.CourseExporter.exportWord(selected, window.LearningStorage.getState(), lesson?.title || "英语课程与学习记录");
+    else return { ok: false, error: "INVALID_FORMAT" };
+    return { ok: true, format, lessons: selected.map(lessonSummary) };
+  }
+
+  function loadPptxGen() {
+    if (window.PptxGenJS) return Promise.resolve(window.PptxGenJS);
+    if (pptxPromise) return pptxPromise;
+    pptxPromise = new Promise((resolve, reject) => {
+      const script = window.document.createElement("script");
+      script.src = PPTXGEN_URL;
+      script.async = true;
+      script.onload = () => window.PptxGenJS
+        ? resolve(window.PptxGenJS)
+        : reject(new Error("PPT_COMPONENT_UNAVAILABLE"));
+      script.onerror = () => reject(new Error("PPT_COMPONENT_LOAD_FAILED"));
+      window.document.head.appendChild(script);
+    }).catch((error) => {
+      pptxPromise = null;
+      throw error;
+    });
+    return pptxPromise;
+  }
+
+  function safeFileName(value) {
+    return (cleanText(value, 80) || "小何英语学习")
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function presentationSlides(args) {
+    return (Array.isArray(args.slides) ? args.slides : []).slice(0, 12).map((slide, index) => ({
+      title: cleanText(slide?.title, 100) || `第 ${index + 1} 页`,
+      bullets: (Array.isArray(slide?.bullets) ? slide.bullets : [])
+        .slice(0, 8)
+        .map((item) => cleanText(item, 260))
+        .filter(Boolean)
+    })).filter((slide) => slide.bullets.length);
+  }
+
+  async function createPresentation(args) {
+    const slides = presentationSlides(args);
+    if (!slides.length) return { ok: false, error: "EMPTY_PRESENTATION" };
+    const PptxGenJS = await loadPptxGen();
+    const pptx = new PptxGenJS();
+    const title = cleanText(args.title, 120) || "小何英语学习";
+    const subtitle = cleanText(args.subtitle, 220);
+
+    pptx.layout = "LAYOUT_WIDE";
+    pptx.author = "小何英语学习 Agent";
+    pptx.company = "何鑫英语学习";
+    pptx.subject = title;
+    pptx.title = title;
+    pptx.lang = "zh-CN";
+    pptx.theme = {
+      headFontFace: "Aptos Display",
+      bodyFontFace: "Aptos",
+      lang: "zh-CN"
+    };
+
+    const cover = pptx.addSlide();
+    cover.background = { color: "F7F7F5" };
+    cover.addText("XIAO HE · ENGLISH LEARNING", {
+      x: 0.8, y: 0.72, w: 11.7, h: 0.34,
+      fontFace: "Aptos", fontSize: 11, bold: true, color: "777777", charSpacing: 1.8,
+      margin: 0, breakLine: false
+    });
+    cover.addText(title, {
+      x: 0.8, y: 1.55, w: 11.5, h: 1.5,
+      fontFace: "Aptos Display", fontSize: 34, bold: true, color: "202020",
+      margin: 0.02, valign: "mid", breakLine: false
+    });
+    if (subtitle) cover.addText(subtitle, {
+      x: 0.82, y: 3.3, w: 10.9, h: 1.05,
+      fontFace: "Aptos", fontSize: 18, color: "666666",
+      margin: 0, breakLine: false, valign: "top"
+    });
+    cover.addText("Generated by 小何", {
+      x: 0.82, y: 6.75, w: 4.2, h: 0.25,
+      fontFace: "Aptos", fontSize: 10, color: "929292", margin: 0, breakLine: false
+    });
+
+    slides.forEach((item, index) => {
+      const slide = pptx.addSlide();
+      slide.background = { color: index % 2 ? "F5F5F2" : "FFFFFF" };
+      slide.addText(String(index + 1).padStart(2, "0"), {
+        x: 0.72, y: 0.45, w: 0.72, h: 0.4,
+        fontFace: "Aptos", fontSize: 11, bold: true, color: "999999", margin: 0, breakLine: false
+      });
+      slide.addText(item.title, {
+        x: 1.55, y: 0.42, w: 10.8, h: 0.72,
+        fontFace: "Aptos Display", fontSize: 27, bold: true, color: "202020",
+        margin: 0, breakLine: false, fit: "shrink"
+      });
+      const body = item.bullets.map((bullet) => `•  ${bullet}`).join("\n\n");
+      slide.addText(body, {
+        x: 1.55, y: 1.55, w: 10.45, h: 4.95,
+        fontFace: "Aptos", fontSize: item.bullets.length > 6 ? 17 : 20,
+        color: "333333", margin: 0.04, breakLine: false,
+        breakLineOnOverflow: false, fit: "shrink", valign: "top", paraSpaceAfterPt: 12
+      });
+      slide.addText("小何英语学习", {
+        x: 10.7, y: 6.85, w: 1.55, h: 0.2,
+        fontFace: "Aptos", fontSize: 8, color: "AAAAAA", align: "right", margin: 0, breakLine: false
+      });
+    });
+
+    const fileName = `${safeFileName(args.fileName || title)}.pptx`;
+    await pptx.writeFile({ fileName, compression: true });
+    return { ok: true, fileName, slideCount: slides.length + 1, title };
+  }
+
+  function describe(call) {
+    const args = call?.args || {};
+    const labels = {
+      create_lesson: `新建课程“${cleanText(args.title, 40) || "未命名课程"}”`,
+      edit_lesson: `${args.operation === "rename" ? "修改课名" : args.operation === "add_word" ? "添加单词" : "添加句子"}：${cleanText(args.lesson, 40)}`,
+      delete_lesson: `删除课程：${cleanText(args.lesson, 40)}`,
+      update_word_state: `更新单词状态：${cleanText(args.word, 40)} → ${cleanText(args.action, 30)}`,
+      export_lesson: `导出 ${cleanText(args.lesson, 40) || "全部课程"} 为 ${cleanText(args.format, 10).toUpperCase()}`,
+      create_presentation: `生成并下载 PPT：${cleanText(args.title, 50) || "英语学习演示"}`
+    };
+    return labels[call?.name] || cleanText(call?.name, 80);
+  }
+
+  async function execute(call) {
+    const args = call?.args && typeof call.args === "object" ? call.args : {};
+    const handlers = {
+      get_learning_overview: () => ({ ok: true, ...learningOverview() }),
+      list_lessons: () => ({ ok: true, lessons: lessons().map(lessonSummary) }),
+      get_lesson_detail: () => lessonDetail(args.lesson),
+      search_course: () => searchCourse(args.query),
+      create_lesson: () => createLesson(args),
+      edit_lesson: () => editLesson(args),
+      delete_lesson: () => deleteLesson(args),
+      update_word_state: () => updateWordState(args),
+      navigate_to_page: () => navigate(args),
+      export_lesson: () => exportLesson(args),
+      create_presentation: () => createPresentation(args)
+    };
+    if (!handlers[call?.name]) return { ok: false, error: "UNKNOWN_TOOL" };
+    try {
+      return await handlers[call.name]();
+    } catch (error) {
+      return { ok: false, error: cleanText(error?.code || error?.message || "TOOL_FAILED", 300) };
+    }
+  }
+
+  function takeReloadRequest() {
+    const requested = reloadRequested;
+    reloadRequested = false;
+    return requested;
+  }
+
+  window.XiaoHeTools = Object.freeze({
+    context,
+    execute,
+    describe,
+    requiresConfirmation: (call) => MUTATING_TOOLS.has(call?.name),
+    takeReloadRequest
+  });
+})();

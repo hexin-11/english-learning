@@ -3,10 +3,11 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
-const { URL } = require("node:url");
+const { URL, pathToFileURL } = require("node:url");
 const AGENT_PROMPT = require("./prompt");
 
 const ROOT = path.resolve(__dirname, "..");
+const agentToolsPromise = import(pathToFileURL(path.join(ROOT, "worker", "src", "tools.mjs")).href);
 loadLocalEnv(path.join(ROOT, ".env.local"));
 
 const PORT = numberInRange(process.env.PORT, 8787, 1, 65535);
@@ -222,8 +223,8 @@ function outputText(payload) {
   return cleanAssistantText(text);
 }
 
-function geminiContents(history, message, image) {
-  const latestParts = [{ text: message }];
+function geminiContents(history, message, image, contextText = "") {
+  const latestParts = [{ text: `${message}${contextText}` }];
   if (image) {
     latestParts.push({
       inlineData: {
@@ -241,10 +242,11 @@ function geminiContents(history, message, image) {
   ];
 }
 
-async function createAgentReply(message, history, image) {
+async function createAgentReply(message, history, image, context, trace) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const agentTools = await agentToolsPromise;
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
     const response = await fetch(endpoint, {
       method: "POST",
@@ -254,7 +256,11 @@ async function createAgentReply(message, history, image) {
       },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: AGENT_PROMPT }] },
-        contents: geminiContents(history, message, image),
+        contents: agentTools.appendToolTrace(
+          geminiContents(history, message, image, agentTools.agentContextPart(context)),
+          trace
+        ),
+        ...agentTools.agentToolConfig(),
         generationConfig: {
           maxOutputTokens: 900,
           temperature: 0.7,
@@ -280,6 +286,8 @@ async function createAgentReply(message, history, image) {
           : 502;
       throw error;
     }
+    const toolCalls = agentTools.extractToolCalls(payload);
+    if (toolCalls.length) return { toolCalls, requestId };
     const reply = outputText(payload);
     if (!reply) {
       const error = new Error("EMPTY_RESPONSE");
@@ -312,7 +320,7 @@ async function handle(req, res) {
       provider: "gemini",
       model: MODEL,
       configured: Boolean(API_KEY),
-      capabilities: { text: true, vision: true }
+      capabilities: { text: true, vision: true, tools: true, planning: true, approvals: true }
     });
     return;
   }
@@ -338,12 +346,21 @@ async function handle(req, res) {
     const image = cleanImage(body.image);
     const message = cleanMessage(body.message) || (image ? "请仔细识别这张图片，并结合英语学习给出准确、简洁的说明。" : "");
     const history = cleanHistory(body.history);
+    const agentTools = await agentToolsPromise;
+    const context = agentTools.cleanAgentContext(body.context);
+    const trace = agentTools.cleanToolTrace(body.trace);
     if (!message) {
       sendJson(res, 400, { error: "EMPTY_MESSAGE", message: "请输入想对小何说的话。" });
       return;
     }
-    const result = await createAgentReply(message, history, image);
-    sendJson(res, 200, { reply: result.reply, provider: "gemini", model: MODEL, requestId: result.requestId });
+    const result = await createAgentReply(message, history, image, context, trace);
+    sendJson(res, 200, {
+      reply: result.reply || "",
+      toolCalls: result.toolCalls || [],
+      provider: "gemini",
+      model: MODEL,
+      requestId: result.requestId
+    });
   } catch (error) {
     if (res.destroyed) return;
     if (error?.name === "AbortError") {

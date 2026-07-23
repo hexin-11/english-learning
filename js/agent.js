@@ -5,6 +5,7 @@
   const POSITION_STORAGE_KEY = "hexin-xiaohe-position:v1";
   const MAX_STORED_MESSAGES = 20;
   const MAX_SENT_HISTORY = 12;
+  const MAX_TOOL_ROUNDS = 4;
   const REQUEST_TIMEOUT_MS = 65000;
   const DRAG_THRESHOLD = 5;
   const VIEWPORT_MARGIN = 8;
@@ -20,7 +21,7 @@
       clear: "清空对话",
       clearAgain: "再点一次确认清空",
       title: "小何",
-      subtitle: "英语学习助手",
+      subtitle: "自主学习 Agent",
       online: "在线",
       checking: "正在连接",
       offline: "后端未连接",
@@ -30,6 +31,7 @@
       correct: "批改句子",
       explain: "解释单词",
       grammar: "解析语法",
+      presentation: "制作 PPT",
       attach: "添加图片",
       removeImage: "移除图片",
       imageOptimizing: "正在优化图片，保留文字与细节…",
@@ -42,10 +44,16 @@
       correctPrompt: "请帮我批改这句话：",
       explainPrompt: "请解释这个单词，并给我两个带中文翻译的例句：",
       grammarPrompt: "请解析这句话的语法结构，说明时态、句型和重点语法，并给出中文翻译：",
+      presentationPrompt: "请根据以下主题制作并下载一份中英双语学习 PPT：",
       placeholder: "问小何英语问题…",
       send: "发送",
       you: "我",
       typing: "小何正在想",
+      working: "小何正在执行任务",
+      approval: "小何计划执行以下操作：",
+      approvalQuestion: "\n\n是否允许执行？",
+      denied: "你没有授权这项操作，我没有修改任何数据。",
+      refreshing: "任务已经完成，正在刷新课程页面…",
       noBackend: "小何的后端还没有连接。你可以先在本地启动后端，或为线上网站配置 HTTPS 后端地址。",
       failed: "小何暂时没有听清，请稍后重试。",
       timeout: "小何想得有点久，请再试一次。",
@@ -57,7 +65,7 @@
       clear: "Clear chat",
       clearAgain: "Click again to clear",
       title: "Xiao He",
-      subtitle: "English learning assistant",
+      subtitle: "Autonomous learning agent",
       online: "Online",
       checking: "Connecting",
       offline: "Backend offline",
@@ -67,6 +75,7 @@
       correct: "Correct a sentence",
       explain: "Explain a word",
       grammar: "Analyse grammar",
+      presentation: "Create PPT",
       attach: "Add an image",
       removeImage: "Remove image",
       imageOptimizing: "Optimising the image while keeping text and details…",
@@ -79,10 +88,16 @@
       correctPrompt: "Please correct this sentence: ",
       explainPrompt: "Please explain this word and give me two examples with Chinese translations: ",
       grammarPrompt: "Please analyse the grammar of this sentence, including its tense, sentence pattern, key grammar points, and Chinese translation: ",
+      presentationPrompt: "Create and download a bilingual English-learning PowerPoint about: ",
       placeholder: "Ask Xiao He about English…",
       send: "Send",
       you: "Me",
       typing: "Xiao He is thinking",
+      working: "Xiao He is running the task",
+      approval: "Xiao He plans to perform these actions:",
+      approvalQuestion: "\n\nAllow these actions?",
+      denied: "You did not approve the action, so no data was changed.",
+      refreshing: "Task complete. Refreshing the lessons…",
       noBackend: "Xiao He's backend is not connected. Start it locally or configure an HTTPS backend for the live site.",
       failed: "Xiao He could not answer just now. Please try again.",
       timeout: "Xiao He took too long to think. Please try again.",
@@ -94,7 +109,7 @@
       clear: "대화 지우기",
       clearAgain: "한 번 더 눌러 지우기",
       title: "샤오허",
-      subtitle: "영어 학습 도우미",
+      subtitle: "자율 학습 Agent",
       online: "온라인",
       checking: "연결 중",
       offline: "백엔드 연결 안 됨",
@@ -104,6 +119,7 @@
       correct: "문장 교정",
       explain: "단어 설명",
       grammar: "문법 분석",
+      presentation: "PPT 만들기",
       attach: "이미지 추가",
       removeImage: "이미지 제거",
       imageOptimizing: "글자와 세부 정보를 유지하며 이미지를 최적화하는 중…",
@@ -116,10 +132,16 @@
       correctPrompt: "이 문장을 고쳐 주세요: ",
       explainPrompt: "이 단어를 설명하고 중국어 번역이 있는 예문 두 개를 주세요: ",
       grammarPrompt: "이 문장의 문법 구조, 시제, 문형과 핵심 문법을 분석하고 중국어 번역도 제공해 주세요: ",
+      presentationPrompt: "다음 주제로 중영 이중 언어 학습 PPT를 만들고 다운로드해 주세요: ",
       placeholder: "샤오허에게 영어 질문하기…",
       send: "보내기",
       you: "나",
       typing: "샤오허가 생각 중",
+      working: "샤오허가 작업을 실행 중",
+      approval: "샤오허가 다음 작업을 실행하려고 합니다:",
+      approvalQuestion: "\n\n실행을 허용할까요?",
+      denied: "작업이 승인되지 않아 데이터를 변경하지 않았습니다.",
+      refreshing: "작업이 완료되어 수업 페이지를 새로고침합니다…",
       noBackend: "샤오허 백엔드가 연결되지 않았습니다. 로컬 백엔드를 시작하거나 온라인용 HTTPS 주소를 설정하세요.",
       failed: "지금은 답변할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       timeout: "생각하는 시간이 길어졌어요. 다시 시도해 주세요.",
@@ -131,7 +153,7 @@
       clear: "会話を消去",
       clearAgain: "もう一度押して消去",
       title: "シャオホー",
-      subtitle: "英語学習アシスタント",
+      subtitle: "自律学習Agent",
       online: "オンライン",
       checking: "接続中",
       offline: "バックエンド未接続",
@@ -141,6 +163,7 @@
       correct: "文を添削",
       explain: "単語を説明",
       grammar: "文法を解析",
+      presentation: "PPTを作成",
       attach: "画像を追加",
       removeImage: "画像を削除",
       imageOptimizing: "文字と細部を保ちながら画像を最適化しています…",
@@ -153,10 +176,16 @@
       correctPrompt: "この文を添削してください：",
       explainPrompt: "この単語を説明し、中国語訳付きの例文を2つください：",
       grammarPrompt: "この文の文法構造、時制、文型、重要な文法を解析し、中国語訳も付けてください：",
+      presentationPrompt: "次のテーマで中英バイリンガル学習PPTを作成してダウンロードしてください：",
       placeholder: "英語について質問する…",
       send: "送信",
       you: "私",
       typing: "考えています",
+      working: "タスクを実行しています",
+      approval: "次の操作を実行します:",
+      approvalQuestion: "\n\n実行を許可しますか？",
+      denied: "許可されなかったため、データは変更していません。",
+      refreshing: "タスクが完了しました。レッスンを更新します…",
       noBackend: "バックエンドに接続できません。ローカルで起動するか、公開サイト用のHTTPS URLを設定してください。",
       failed: "今は回答できませんでした。もう一度お試しください。",
       timeout: "考えるのに時間がかかりました。もう一度お試しください。",
@@ -664,7 +693,7 @@
     }
   }
 
-  async function requestReply(message, history, attachment) {
+  async function requestReply(message, history, attachment, trace) {
     if (!apiBase()) throw new Error("NO_BACKEND");
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -675,7 +704,9 @@
         body: JSON.stringify({
           message,
           history: history.slice(-MAX_SENT_HISTORY).map((item) => ({ role: item.role, content: item.content })),
-          image: attachment ? { mimeType: attachment.mimeType, data: attachment.data } : null
+          image: attachment ? { mimeType: attachment.mimeType, data: attachment.data } : null,
+          context: window.XiaoHeTools?.context?.() || {},
+          trace: Array.isArray(trace) ? trace : []
         }),
         signal: controller.signal
       });
@@ -685,8 +716,12 @@
         error.code = payload.error;
         throw error;
       }
-      if (typeof payload.reply !== "string" || !payload.reply.trim()) throw new Error("EMPTY_REPLY");
-      return payload.reply.trim();
+      const toolCalls = Array.isArray(payload.toolCalls) ? payload.toolCalls.slice(0, 6).filter((call) => {
+        return call && typeof call.name === "string" && call.args && typeof call.args === "object";
+      }) : [];
+      const reply = typeof payload.reply === "string" ? payload.reply.trim() : "";
+      if (!reply && !toolCalls.length) throw new Error("EMPTY_REPLY");
+      return { reply, toolCalls };
     } catch (error) {
       if (error?.name === "AbortError") {
         const timeoutError = new Error("TIMEOUT");
@@ -697,6 +732,39 @@
     } finally {
       window.clearTimeout(timer);
     }
+  }
+
+  async function executeToolCalls(calls) {
+    if (!window.XiaoHeTools?.execute) {
+      return calls.map((call) => ({ id: call.id || "", name: call.name, result: { ok: false, error: "TOOLS_UNAVAILABLE" } }));
+    }
+    const guarded = calls.filter((call) => window.XiaoHeTools.requiresConfirmation(call));
+    let approved = true;
+    if (guarded.length) {
+      const plan = guarded.map((call, index) => `${index + 1}. ${window.XiaoHeTools.describe(call)}`).join("\n");
+      approved = window.confirm(`${text("approval")}\n\n${plan}${text("approvalQuestion")}`);
+    }
+    const results = [];
+    for (const call of calls) {
+      const needsApproval = window.XiaoHeTools.requiresConfirmation(call);
+      const result = needsApproval && !approved
+        ? { ok: false, error: "USER_DENIED", message: text("denied") }
+        : await window.XiaoHeTools.execute(call);
+      results.push({ id: call.id || "", name: call.name, result });
+    }
+    return results;
+  }
+
+  function updateTypingStatus(message) {
+    const typing = document.querySelector("[data-agent-typing] p");
+    if (!typing) return;
+    typing.replaceChildren(document.createTextNode(message));
+    const dots = document.createElement("span");
+    dots.className = "agent-typing-dots";
+    dots.setAttribute("aria-hidden", "true");
+    dots.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
+    typing.append(dots);
+    scrollToLatest();
   }
 
   async function sendMessage(rawMessage) {
@@ -719,12 +787,30 @@
     scrollToLatest();
 
     try {
-      const reply = cleanAssistantText(await requestReply(message, previous, attachment));
+      const trace = [];
+      let reply = "";
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+        const response = await requestReply(message, previous, attachment, trace);
+        if (!response.toolCalls.length) {
+          reply = cleanAssistantText(response.reply);
+          break;
+        }
+        updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
+        const results = await executeToolCalls(response.toolCalls);
+        trace.push({ calls: response.toolCalls, results });
+      }
+      if (!reply) reply = "任务步骤已经执行，但这次没有生成最终说明。请查看刚才的执行结果。";
       list.querySelector("[data-agent-typing]")?.remove();
       state.messages.push({ role: "assistant", content: reply });
       saveHistory();
       list.append(messageElement("assistant", reply, false));
       setStatus("online");
+      if (window.XiaoHeTools?.takeReloadRequest?.()) {
+        state.messages.push({ role: "assistant", content: text("refreshing") });
+        saveHistory();
+        list.append(messageElement("assistant", text("refreshing"), false));
+        window.setTimeout(() => window.location.reload(), 1400);
+      }
     } catch (error) {
       list.querySelector("[data-agent-typing]")?.remove();
       const noBackend = error?.message === "NO_BACKEND";
