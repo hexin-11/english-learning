@@ -42,5 +42,8 @@ assert.match(appSource, /data-online-dictionary-favorite/);
 assert.match(appSource, /dictionaryFavoriteWords\(\)/);
 assert.match(appSource, /toggleDictionaryFavorite/);
 assert.match(styleSource, /\.dictionary-favorite-action\[aria-pressed="true"\]/);
+assert.match(styleSource, /--favorite:\s*#[0-9a-f]{6}/i, "Favorite stars should use a dedicated yellow color token");
+assert.match(styleSource, /\.favorite-star\[aria-pressed="true"\][\s\S]*?color:\s*var\(--favorite\)/, "Saved course-word stars should be yellow");
+assert.match(styleSource, /\.dictionary-favorite-action\[aria-pressed="true"\]\s+svg\s*\{[\s\S]*?fill:\s*var\(--favorite\)/, "Saved online-dictionary stars should be yellow");
 
 console.log("Online dictionary favorite tests passed.");
