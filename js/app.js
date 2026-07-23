@@ -1495,22 +1495,44 @@
     popover.style.removeProperty("top");
     popover.style.removeProperty("left");
     popover.style.removeProperty("bottom");
+    popover.style.removeProperty("max-height");
+    popover.removeAttribute("data-placement");
     if (window.innerWidth <= 700) return;
 
     const triggerRect = trigger.getBoundingClientRect();
+    const edge = 12;
+    const gap = 8;
+    popover.style.maxHeight = `${Math.max(220, Math.min(480, window.innerHeight - (edge * 2)))}px`;
     const popoverRect = popover.getBoundingClientRect();
-    const gap = 10;
-    const left = Math.min(
-      window.innerWidth - popoverRect.width - 16,
-      Math.max(16, triggerRect.left + (triggerRect.width - popoverRect.width) / 2)
-    );
-    const preferredTop = triggerRect.bottom + gap;
-    const top = preferredTop + popoverRect.height <= window.innerHeight - 16
-      ? preferredTop
-      : Math.max(16, triggerRect.top - popoverRect.height - gap);
+    const clampLeft = (value) => Math.min(window.innerWidth - popoverRect.width - edge, Math.max(edge, value));
+    const clampTop = (value) => Math.min(window.innerHeight - popoverRect.height - edge, Math.max(edge, value));
+    const spaces = {
+      right: window.innerWidth - triggerRect.right - edge,
+      left: triggerRect.left - edge,
+      below: window.innerHeight - triggerRect.bottom - edge,
+      above: triggerRect.top - edge
+    };
+    let placement;
+    if (spaces.right >= popoverRect.width + gap) placement = "right";
+    else if (spaces.left >= popoverRect.width + gap) placement = "left";
+    else if (spaces.below >= popoverRect.height + gap) placement = "below";
+    else if (spaces.above >= popoverRect.height + gap) placement = "above";
+    else placement = spaces.below >= spaces.above ? "below" : "above";
+
+    let left;
+    let top;
+    if (placement === "right" || placement === "left") {
+      left = placement === "right" ? triggerRect.right + gap : triggerRect.left - popoverRect.width - gap;
+      top = clampTop(triggerRect.top - 20);
+    } else {
+      left = clampLeft(triggerRect.left + (triggerRect.width - popoverRect.width) / 2);
+      top = placement === "below" ? triggerRect.bottom + gap : triggerRect.top - popoverRect.height - gap;
+      top = clampTop(top);
+    }
 
     popover.style.left = `${left}px`;
     popover.style.top = `${top}px`;
+    popover.dataset.placement = placement;
   }
 
   function closeWordPopover(restoreFocus) {
@@ -1550,8 +1572,10 @@
     $("#word-popover-meaning").hidden = !details.isVocabulary;
     $("#word-popover-context").textContent = sentenceTranslation ? `句子翻译：${sentenceTranslation}` : "";
     $("#word-popover-context").hidden = !sentenceTranslation;
-    $("#word-popover").hidden = false;
-    $("#popover-scrim").hidden = false;
+    const popover = $("#word-popover");
+    popover.scrollTop = 0;
+    popover.hidden = false;
+    $("#popover-scrim").hidden = window.innerWidth > 700;
     positionWordPopover(trigger);
     recordLessonActivity(activePopoverWord.lessonId);
 
@@ -1615,6 +1639,11 @@
 
     $("#word-popover-close").addEventListener("click", () => closeWordPopover(true));
     $("#popover-scrim").addEventListener("click", () => closeWordPopover(false));
+    document.addEventListener("pointerdown", (event) => {
+      const popover = $("#word-popover");
+      if (popover.hidden || popover.contains(event.target) || event.target.closest("[data-word]")) return;
+      closeWordPopover(false);
+    });
     $("#word-speak-us").addEventListener("click", () => {
       if (activePopoverWord) window.SpeechController.speak(activePopoverWord.word, "en-US");
     });
@@ -1623,8 +1652,14 @@
     });
 
     window.addEventListener("resize", () => {
-      if (activeWordTrigger && !$("#word-popover").hidden) positionWordPopover(activeWordTrigger);
+      if (activeWordTrigger && !$("#word-popover").hidden) {
+        $("#popover-scrim").hidden = window.innerWidth > 700;
+        positionWordPopover(activeWordTrigger);
+      }
     });
+    window.addEventListener("scroll", () => {
+      if (activeWordTrigger && !$("#word-popover").hidden) positionWordPopover(activeWordTrigger);
+    }, { passive: true });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeWordPopover(true);
     });

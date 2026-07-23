@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "js", "dictionary.js"), "utf8");
 const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+const styleSource = fs.readFileSync(path.join(root, "css", "style.css"), "utf8");
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const values = new Map();
 const requests = [];
@@ -96,6 +97,11 @@ vm.runInNewContext(source, sandbox, { filename: "dictionary.js" });
   assert.match(appSource, /OnlineDictionary\.lookup\(details\.word/);
   assert.match(appSource, /renderFlashcardDictionary\(word\)/);
   assert.match(appSource, /lexicalMeaningsMarkup\(displayedMeanings, "flashcard"\)/);
+  assert.match(appSource, /placement = "right"/);
+  assert.match(appSource, /window\.addEventListener\("scroll"/);
+  assert.match(styleSource, /width:\s*min\(360px, calc\(100vw - 24px\)\)/);
+  assert.match(styleSource, /max-height:\s*min\(480px, calc\(100dvh - 24px\)\)/);
+  assert.match(styleSource, /overscroll-behavior:\s*contain/);
 
   console.log("Dictionary meanings and parts-of-speech tests passed.");
 })().catch((error) => {
