@@ -22,7 +22,7 @@
       "nav.favorites": "收藏",
       "nav.flashcards": "单词卡",
       "speech.settings": "朗读设置",
-      "speech.ready": "点击英文即可朗读",
+      "speech.ready": "点击小喇叭即可朗读",
       "speech.voice": "英语声音",
       "speech.reload": "刷新",
       "speech.accent": "发音",
@@ -48,8 +48,8 @@
       "lessons.words": "单词与短语",
       "lessons.grammar": "语法与例句",
       "lessons.reading": "文章与句子",
-      "lessons.clickRead": "点击卡片朗读",
-      "lessons.clickWord": "点击单词查音标，或朗读整句",
+      "lessons.clickRead": "点击单词前的小喇叭播放发音",
+      "lessons.clickWord": "点击单词查音标，点击句首小喇叭播放声音",
       "lessons.open": "展开学习",
       "lessons.close": "收起课程",
       "lessons.wordCount": "{words} 个词条 · {sentences} 条学习句子",
@@ -95,7 +95,7 @@
       "search.placeholder": "例如：junction、serendipity、郊区",
       "search.clear": "清空",
       "favorites.title": "我的收藏",
-      "favorites.description": "集中查看收藏的单词与短语，点击卡片可以直接朗读。",
+      "favorites.description": "集中查看收藏的单词与短语，点击单词前的小喇叭即可朗读。",
       "favorites.browse": "浏览课程",
       "favorites.review": "复习收藏",
       "favorites.count": "已收藏 {count} 个单词与短语", "favorites.none": "还没有收藏词条", "favorites.emptyTitle": "收藏夹还是空的", "favorites.emptyText": "进入课程，点击单词卡右上角的星星即可收藏。", "favorites.add": "收藏", "favorites.remove": "取消收藏", "favorites.saved": "已收藏",
@@ -130,13 +130,13 @@
       "lessons.localCourse": "Local lesson",
       "lessons.manualCourseHint": "Created manually · Add words, grammar, and articles below",
       "language.label": "Interface language", "nav.home": "Home", "nav.lessons": "Lessons", "nav.search": "Search", "nav.favorites": "Favorites", "nav.flashcards": "Flashcards",
-      "speech.settings": "Reading settings", "speech.ready": "Click English text to hear it", "speech.voice": "English voice", "speech.reload": "Refresh", "speech.accent": "Accent", "speech.us": "US", "speech.uk": "UK", "speech.speed": "Speed", "speech.stop": "Stop", "speech.voiceCount": "English voices · {count}", "speech.defaultVoice": "System default English voice ({accent})", "speech.defaultMark": "default", "speech.unsupportedSystem": "Speech is not supported in this browser", "speech.accentAU": "Australian", "speech.accentEnglish": "English", "theme.day": "Light", "theme.night": "Dark", "theme.toDay": "Switch to light mode", "theme.toNight": "Switch to dark mode",
+      "speech.settings": "Reading settings", "speech.ready": "Click a speaker to hear it", "speech.voice": "English voice", "speech.reload": "Refresh", "speech.accent": "Accent", "speech.us": "US", "speech.uk": "UK", "speech.speed": "Speed", "speech.stop": "Stop", "speech.voiceCount": "English voices · {count}", "speech.defaultVoice": "System default English voice ({accent})", "speech.defaultMark": "default", "speech.unsupportedSystem": "Speech is not supported in this browser", "speech.accentAU": "Australian", "speech.accentEnglish": "English", "theme.day": "Light", "theme.night": "Dark", "theme.toDay": "Switch to light mode", "theme.toNight": "Switch to dark mode",
       "home.continue": "Continue learning", "home.cards": "Start flashcards", "home.overview": "Learning overview", "home.autoUpdate": "Your stats update as you study", "home.recent": "Recent lessons", "home.allLessons": "View all lessons", "stats.courses": "Lessons", "stats.words": "Words & phrases", "stats.mastered": "Mastered", "stats.favorites": "Favorites", "recent.emptyTitle": "No study history yet", "recent.emptyText": "Open a lesson or click English text to see it here.", "recent.continue": "Continue",
-      "lessons.title": "Lessons", "lessons.description": "Open a lesson to study, or turn your own PDF, Word document, or image into a new lesson.", "lessons.hideChinese": "Hide Chinese translations", "lessons.hideChineseHint": "Show only English and phonetics for self-testing", "lessons.expand": "Expand all", "lessons.collapse": "Collapse all", "lessons.words": "Words & phrases", "lessons.grammar": "Grammar & examples", "lessons.reading": "Articles & sentences", "lessons.clickRead": "Click a card to hear it", "lessons.clickWord": "Click a word for phonetics, or read the whole sentence", "lessons.open": "Open lesson", "lessons.close": "Close lesson", "lessons.wordCount": "{words} entries · {sentences} study sentences", "lessons.localImport": "Local import", "lessons.source": "Source: {source} · Original file not saved", "lessons.empty": "No content yet", "import.title": "Create a lesson from a file", "import.description": "Extract text and organize vocabulary and bilingual sentences in your browser, then review before saving.", "import.local": "Saved on this device", "import.choose": "Choose a file or drop it here",
+      "lessons.title": "Lessons", "lessons.description": "Open a lesson to study, or turn your own PDF, Word document, or image into a new lesson.", "lessons.hideChinese": "Hide Chinese translations", "lessons.hideChineseHint": "Show only English and phonetics for self-testing", "lessons.expand": "Expand all", "lessons.collapse": "Collapse all", "lessons.words": "Words & phrases", "lessons.grammar": "Grammar & examples", "lessons.reading": "Articles & sentences", "lessons.clickRead": "Use the speaker before a word to play it", "lessons.clickWord": "Click a word for phonetics, or use the speaker at the start to hear the sentence", "lessons.open": "Open lesson", "lessons.close": "Close lesson", "lessons.wordCount": "{words} entries · {sentences} study sentences", "lessons.localImport": "Local import", "lessons.source": "Source: {source} · Original file not saved", "lessons.empty": "No content yet", "import.title": "Create a lesson from a file", "import.description": "Extract text and organize vocabulary and bilingual sentences in your browser, then review before saving.", "import.local": "Saved on this device", "import.choose": "Choose a file or drop it here",
       "export.title": "Export lessons and progress", "export.hint": "Export every lesson or one lesson with your mastery, review, and favorite status.", "export.scope": "Export scope", "export.all": "All lessons", "export.pdf": "Export PDF", "export.word": "Export Word", "export.working": "Generating file…", "export.done": "Your download has started.", "export.failed": "Export failed: {message}",
       "edit.manage": "Lesson controls", "edit.rename": "Rename lesson", "edit.deleteLesson": "Delete lesson", "edit.addWord": "Add entry", "edit.addGrammar": "Add grammar", "edit.addExample": "Add example", "edit.addSentence": "Add article or sentence", "edit.delete": "Delete", "edit.confirm": "Click again to confirm", "edit.saved": "Changes saved", "edit.dialog.rename": "Rename lesson", "edit.dialog.word": "Add a word or phrase", "edit.dialog.note": "Add a grammar note", "edit.dialog.example": "Add a grammar example", "edit.dialog.sentence": "Add an article or sentence", "edit.field.title": "Title", "edit.field.english": "English", "edit.field.ipa": "Phonetics", "edit.field.chinese": "Chinese", "edit.field.description": "Description", "edit.field.structures": "Grammar structures (one per line)", "edit.cancel": "Cancel", "edit.save": "Save",
       "search.title": "Word search", "search.description": "Search course vocabulary in English or Chinese, and look up unfamiliar English words online.", "search.label": "Search all course content or look up any English word", "search.placeholder": "For example: junction, serendipity, 郊区", "search.clear": "Clear",
-      "favorites.title": "My favorites", "favorites.description": "Keep saved words and phrases together. Click a card to hear it.", "favorites.browse": "Browse lessons", "favorites.review": "Review favorites", "favorites.count": "{count} saved words and phrases", "favorites.none": "No saved entries yet", "favorites.emptyTitle": "Your favorites are empty", "favorites.emptyText": "Open a lesson and click the star on a word card to save it.", "favorites.add": "Favorite", "favorites.remove": "Remove favorite", "favorites.saved": "Saved",
+      "favorites.title": "My favorites", "favorites.description": "Keep saved words and phrases together. Use the speaker before a word to hear it.", "favorites.browse": "Browse lessons", "favorites.review": "Review favorites", "favorites.count": "{count} saved words and phrases", "favorites.none": "No saved entries yet", "favorites.emptyTitle": "Your favorites are empty", "favorites.emptyText": "Open a lesson and click the star on a word card to save it.", "favorites.add": "Favorite", "favorites.remove": "Remove favorite", "favorites.saved": "Saved",
       "cloud.open": "Sign in and sync", "cloud.close": "Close account dialog", "cloud.title": "Account and cloud sync", "cloud.description": "Sign in to sync chats, lessons, and learning progress across your devices.", "cloud.notConfiguredTitle": "Cloud sync is not configured", "cloud.notConfiguredText": "Create a Supabase project and add its public URL and publishable key. Local learning still works.", "cloud.email": "Email", "cloud.password": "Password", "cloud.signIn": "Sign in", "cloud.signUp": "Create account", "cloud.signedInAs": "Signed in as", "cloud.conflictTitle": "Choose the first sync direction", "cloud.conflictText": "This device and the cloud both have learning data. Choose which copy to keep.", "cloud.download": "Use cloud data", "cloud.upload": "Upload this device", "cloud.syncNow": "Sync now", "cloud.signOut": "Sign out", "cloud.privacy": "Each account can access only its own data. Original PDF, Word, and image files are not uploaded.", "cloud.localOnly": "Local", "cloud.localStatus": "Data is currently stored only on this device. Configure Supabase for cross-device sync.", "cloud.signedOutStatus": "Sign in to start cloud sync.", "cloud.account": "Account", "cloud.notSynced": "First sync has not completed", "cloud.lastSync": "Last sync: {time}", "cloud.chooseVersion": "Choose cloud data or upload this device's data.", "cloud.invalidLogin": "The email or password is incorrect.", "cloud.confirmEmail": "Confirm your account from the email first.", "cloud.alreadyRegistered": "This email is already registered. Please sign in.", "cloud.networkError": "The cloud service is unreachable. Check your connection and try again.", "cloud.schemaMissing": "The cloud table is missing. Run supabase/schema.sql first.", "cloud.invalidCloudData": "The cloud data is invalid, so local data was not replaced.", "cloud.genericError": "Cloud sync failed. Please try again.", "cloud.saving": "Saving to the cloud…", "cloud.synced": "Chats, lessons, and progress are synced.", "cloud.downloaded": "Cloud data restored. Refreshing…", "cloud.checking": "Comparing local and cloud data…", "cloud.waitingToSave": "New records detected. Preparing to sync…", "cloud.invalidFields": "Enter a valid email.", "cloud.signingIn": "Signing in…", "cloud.creatingAccount": "Creating account…", "cloud.checkEmail": "Account created. Open the verification email, then sign in.", "cloud.connecting": "Connecting to cloud sync…",
       "cloud.methodLabel": "Sign-in method", "cloud.emailLogin": "Email code", "cloud.wechatLogin": "WeChat", "cloud.emailHint": "Your first verification automatically creates an account. No password is needed.", "cloud.sendCode": "Send code", "cloud.code": "Email verification code", "cloud.verifyCode": "Verify and sign in", "cloud.resendCode": "Resend", "cloud.changeEmail": "Change email", "cloud.wechatTitle": "Sign in with WeChat", "cloud.wechatNeedsSetup": "WeChat Open Platform and a Supabase custom OAuth provider must be configured first.", "cloud.wechatReady": "You will be redirected to WeChat for secure authorization.", "cloud.continueWechat": "Continue with WeChat", "cloud.codeSent": "A code was sent to {email}", "cloud.sendingCode": "Sending code…", "cloud.checkCode": "Enter the complete numeric code from your email.", "cloud.verifyingCode": "Verifying…", "cloud.invalidCode": "Enter the complete numeric code from your email, or resend it if expired.", "cloud.tooManyRequests": "Too many requests. Please try again later.", "cloud.wechatUnavailable": "WeChat sign-in has not been configured yet.", "cloud.wechatRedirecting": "Opening secure WeChat sign-in…",
       "profile.edit": "Edit profile", "profile.title": "Edit profile", "profile.avatar": "Avatar", "profile.chooseAvatar": "Choose image", "profile.resetAvatar": "Use default", "profile.avatarHint": "Supports JPG, PNG, and WebP. The image stays in this browser.", "profile.name": "Display name", "profile.errorName": "Enter a display name from 1 to 30 characters.", "profile.errorImage": "Choose a valid image file.", "profile.errorSize": "That image is too large. Choose a smaller one.", "profile.errorSave": "There is not enough browser storage to save this avatar.",
@@ -195,6 +195,11 @@
   };
 
   Object.assign(messages.zh, {
+    "speech.play": "播放 {text}",
+    "speech.ready": "点击小喇叭即可朗读",
+    "lessons.clickRead": "点击单词前的小喇叭播放发音",
+    "lessons.clickWord": "点击单词查音标，点击句首小喇叭播放声音",
+    "favorites.description": "集中查看收藏的单词与短语，点击单词前的小喇叭即可朗读。",
     "cloud.authPages": "账号入口",
     "cloud.loginPage": "登录",
     "cloud.registerPage": "注册",
@@ -237,6 +242,11 @@
   });
 
   Object.assign(messages.en, {
+    "speech.play": "Play {text}",
+    "speech.ready": "Click a speaker to hear it",
+    "lessons.clickRead": "Use the speaker before a word to play it",
+    "lessons.clickWord": "Click a word for phonetics, or use the speaker at the start to hear the sentence",
+    "favorites.description": "Keep saved words and phrases together. Use the speaker before a word to hear it.",
     "cloud.authPages": "Account access",
     "cloud.loginPage": "Sign in",
     "cloud.registerPage": "Register",
@@ -279,6 +289,11 @@
   });
 
   Object.assign(messages.ko, {
+    "speech.play": "{text} 재생",
+    "speech.ready": "스피커를 누르면 읽어 줍니다",
+    "lessons.clickRead": "단어 앞 스피커를 눌러 발음 듣기",
+    "lessons.clickWord": "단어를 눌러 발음기호를 보고 문장 앞 스피커로 전체 문장 듣기",
+    "favorites.description": "저장한 단어와 구를 모아 보고 단어 앞 스피커로 발음을 들으세요.",
     "cloud.authPages": "계정",
     "cloud.loginPage": "로그인",
     "cloud.registerPage": "회원가입",
@@ -321,6 +336,11 @@
   });
 
   Object.assign(messages.ja, {
+    "speech.play": "{text}を再生",
+    "speech.ready": "スピーカーを押すと読み上げます",
+    "lessons.clickRead": "単語の前のスピーカーで発音を再生",
+    "lessons.clickWord": "単語で発音記号を確認し、文頭のスピーカーで文全体を再生",
+    "favorites.description": "保存した単語やフレーズをまとめて、単語の前のスピーカーで発音を聞けます。",
     "cloud.authPages": "アカウント",
     "cloud.loginPage": "ログイン",
     "cloud.registerPage": "新規登録",

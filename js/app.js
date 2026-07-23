@@ -130,16 +130,31 @@
     `;
   }
 
+  function speakerButtonMarkup(content, lessonId, extraClass) {
+    const label = t("speech.play", { text: content });
+    return `
+      <button class="speech-icon-button ${extraClass || ""}" type="button" data-speak="${escapeHTML(content)}" data-lesson-id="${escapeHTML(lessonId)}" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path class="speaker-body" d="M4.5 9.2h3.1l4-3.25v12.1l-4-3.25H4.5z"></path>
+          <path class="speaker-wave speaker-wave-one" d="M14.4 9.1c.8.75 1.2 1.72 1.2 2.9s-.4 2.15-1.2 2.9"></path>
+          <path class="speaker-wave speaker-wave-two" d="M17.2 6.8c1.45 1.35 2.18 3.08 2.18 5.2s-.73 3.85-2.18 5.2"></path>
+        </svg>
+      </button>
+    `;
+  }
+
   function wordCardMarkup(word, showLesson, editContext) {
     return `
       <article class="word-card">
-        <button class="word-card-main" type="button" data-speak="${escapeHTML(word.english)}" data-lesson-id="${escapeHTML(word.lessonId)}" aria-label="朗读 ${escapeHTML(word.english)}">
-          <span class="word" lang="en">${escapeHTML(word.english)}</span>
+        <div class="word-card-main">
+          <div class="word-card-heading">
+            ${speakerButtonMarkup(word.english, word.lessonId, "word-speaker")}
+            <span class="word" lang="en">${escapeHTML(word.english)}</span>
+          </div>
           <span class="ipa">${escapeHTML(word.ipa)}</span>
           <span class="translation">${escapeHTML(word.chinese)}</span>
           ${showLesson ? `<span class="word-card-lesson">${escapeHTML(word.lessonTitle)}</span>` : ""}
-          <span class="speak-hint">点击朗读</span>
-        </button>
+        </div>
         ${favoriteStarMarkup(word)}
         ${editContext ? `<button class="remove-content-button word-remove" type="button" data-remove-word="${escapeHTML(editContext.wordId)}" data-lesson-id="${escapeHTML(editContext.lessonId)}">${t("edit.delete")}</button>` : ""}
       </article>
@@ -212,10 +227,12 @@
 
     const sentenceButton = (sentence, extraClass, type, noteId) => `
       <article class="sentence-card ${extraClass || ""}" data-lesson-id="${lesson.id}">
-        <p class="sentence-english" lang="en">${sentenceWordMarkup(sentence.english, lesson.id)}</p>
+        <div class="sentence-heading">
+          ${speakerButtonMarkup(sentence.english, lesson.id, "sentence-speaker")}
+          <p class="sentence-english" lang="en">${sentenceWordMarkup(sentence.english, lesson.id)}</p>
+        </div>
         ${sentence.ipa ? `<p class="sentence-ipa">${escapeHTML(sentence.ipa)}</p>` : ""}
         <p class="translation">${escapeHTML(sentence.chinese)}</p>
-        <button class="sentence-speak" type="button" data-speak="${escapeHTML(sentence.english)}" data-lesson-id="${lesson.id}">朗读整句</button>
         ${editable ? `<button class="remove-content-button sentence-remove" type="button" data-remove-${type}="${escapeHTML(sentence._id)}" data-lesson-id="${escapeHTML(lesson.id)}" ${noteId ? `data-note-id="${escapeHTML(noteId)}"` : ""}>${t("edit.delete")}</button>` : ""}
       </article>
     `;
@@ -1463,6 +1480,11 @@
     document.addEventListener("click", (event) => {
       const speakTarget = event.target.closest("[data-speak]");
       if (!speakTarget) return;
+      if (speakTarget.classList.contains("speech-icon-button")) {
+        speakTarget.classList.remove("is-playing");
+        window.requestAnimationFrame(() => speakTarget.classList.add("is-playing"));
+        window.setTimeout(() => speakTarget.classList.remove("is-playing"), 1600);
+      }
       window.SpeechController.speak(speakTarget.dataset.speak, speakTarget.dataset.speechAccent);
       recordLessonActivity(speakTarget.dataset.lessonId);
     });

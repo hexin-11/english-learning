@@ -1847,13 +1847,19 @@ body.lesson-is-dragging {
   width: 100%;
   min-height: inherit;
   padding: 17px 52px 17px 17px;
-  border: 0;
-  background: transparent;
   flex-direction: column;
   align-items: flex-start;
-  cursor: pointer;
   color: var(--ink);
   text-align: left;
+}
+
+.word-card-heading,
+.sentence-heading {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 9px;
 }
 
 .word-card:hover {
@@ -1862,11 +1868,93 @@ body.lesson-is-dragging {
   transform: translateY(-1px);
 }
 
-.word-card-main:focus-visible,
+.speech-icon-button:focus-visible,
 .favorite-star:focus-visible,
 .remove-content-button:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: -3px;
+  outline-offset: 2px;
+}
+
+.speech-icon-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin: -3px 0 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-soft);
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.speech-icon-button:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+
+.speech-icon-button svg {
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.speech-icon-button .speaker-body {
+  fill: currentColor;
+  stroke-width: 1.35;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.speech-icon-button .speaker-wave {
+  opacity: 0.58;
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+.speech-icon-button:hover .speaker-wave,
+.speech-icon-button:focus-visible .speaker-wave,
+.speech-icon-button.is-playing .speaker-wave {
+  animation: speaker-wave-pulse 760ms ease-in-out infinite alternate;
+}
+
+.speech-icon-button:hover .speaker-wave-two,
+.speech-icon-button:focus-visible .speaker-wave-two,
+.speech-icon-button.is-playing .speaker-wave-two {
+  animation-delay: 130ms;
+}
+
+.speech-icon-button.is-playing .speaker-body {
+  animation: speaker-body-pulse 520ms ease-in-out infinite alternate;
+}
+
+@keyframes speaker-wave-pulse {
+  from { opacity: 0.18; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes speaker-body-pulse {
+  from { transform: scale(0.92); }
+  to { transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speech-icon-button:hover .speaker-wave,
+  .speech-icon-button:focus-visible .speaker-wave,
+  .speech-icon-button.is-playing .speaker-wave,
+  .speech-icon-button.is-playing .speaker-body {
+    animation: none;
+  }
 }
 
 .word-remove {
@@ -1925,6 +2013,7 @@ body.lesson-is-dragging {
 }
 
 .word-card .word {
+  min-width: 0;
   overflow-wrap: anywhere;
   font-size: 18px;
   font-weight: 650;
@@ -1956,13 +2045,6 @@ body.lesson-is-dragging {
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.05em;
-}
-
-.speak-hint {
-  margin-top: auto;
-  padding-top: 10px;
-  color: var(--subtle);
-  font-size: 10px;
 }
 
 .favorites-toolbar {
@@ -2054,7 +2136,7 @@ body.lesson-is-dragging {
   position: relative;
   min-width: 0;
   min-height: 112px;
-  padding: 19px 122px 19px 20px;
+  padding: 19px 72px 19px 20px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
@@ -2066,6 +2148,8 @@ body.lesson-is-dragging {
 }
 
 .sentence-english {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   color: var(--ink);
   font-size: 17px;
@@ -2108,28 +2192,9 @@ body.lesson-is-dragging {
   line-height: 1.65;
 }
 
-.sentence-speak {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  min-height: 31px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--surface-soft);
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.sentence-speak:hover {
-  border-color: var(--line-strong);
-  color: var(--ink);
-}
-
 .sentence-remove {
   position: absolute;
-  top: 57px;
+  top: 18px;
   right: 18px;
 }
 
@@ -5183,7 +5248,6 @@ html[data-theme="dark"] .agent-launcher img {
     padding: 17px;
   }
 
-  .sentence-speak,
   .sentence-remove {
     position: static;
     margin-top: 14px;
