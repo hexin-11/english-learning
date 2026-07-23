@@ -5,6 +5,7 @@
   const APPEARANCE_VERSION = 4;
   const DEFAULT_STATE = {
     favorites: [],
+    dictionaryFavorites: [],
     mastered: [],
     review: [],
     recentLessons: [],
@@ -31,6 +32,27 @@
     return [...new Set(value.filter((item) => typeof item === "string"))];
   }
 
+  function dictionaryFavoriteId(value) {
+    const normalized = String(value || "").trim().toLocaleLowerCase("en").replaceAll("’", "'");
+    return normalized ? `dictionary:${encodeURIComponent(normalized)}` : "";
+  }
+
+  function normalizeDictionaryFavorites(value) {
+    const seen = new Set();
+    return (Array.isArray(value) ? value : []).slice(0, 500).flatMap((entry) => {
+      const english = String(entry?.english || "").trim().slice(0, 160);
+      const id = dictionaryFavoriteId(english);
+      if (!id || seen.has(id)) return [];
+      seen.add(id);
+      return [{
+        id,
+        english,
+        ipa: String(entry?.ipa || "").trim().slice(0, 160),
+        chinese: String(entry?.chinese || "").trim().slice(0, 500)
+      }];
+    });
+  }
+
   function normalize(candidate) {
     const state = candidate && typeof candidate === "object" ? candidate : {};
     const settings = state.settings && typeof state.settings === "object" ? state.settings : {};
@@ -39,6 +61,7 @@
 
     return {
       favorites: uniqueStrings(state.favorites),
+      dictionaryFavorites: normalizeDictionaryFavorites(state.dictionaryFavorites),
       mastered: uniqueStrings(state.mastered),
       review: uniqueStrings(state.review),
       recentLessons: uniqueStrings(state.recentLessons).slice(0, 5),
@@ -92,6 +115,17 @@
     });
   }
 
+  function toggleDictionaryFavorite(entry) {
+    return update((state) => {
+      const normalized = normalizeDictionaryFavorites([entry])[0];
+      if (!normalized) return state;
+      const index = state.dictionaryFavorites.findIndex((item) => item.id === normalized.id);
+      if (index >= 0) state.dictionaryFavorites.splice(index, 1);
+      else state.dictionaryFavorites.push(normalized);
+      return state;
+    });
+  }
+
   function setWordStatus(wordId, status) {
     return update((state) => {
       const masteredIndex = state.mastered.indexOf(wordId);
@@ -128,6 +162,8 @@
   window.LearningStorage = {
     getState: read,
     toggleFavorite,
+    toggleDictionaryFavorite,
+    dictionaryFavoriteId,
     setWordStatus,
     recordLesson,
     updateSettings

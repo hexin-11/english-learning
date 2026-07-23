@@ -43,6 +43,7 @@
   let onlineSearchTimer = null;
   let onlineSearchController = null;
   let onlineSearchSequence = 0;
+  let activeDictionaryResult = null;
   let wordImageController = null;
   let wordImageSequence = 0;
   let wordImagePrefetchTimer = null;
@@ -115,7 +116,24 @@
   }
 
   function isFavorite(wordId) {
-    return appState.favorites.includes(wordId);
+    return appState.favorites.includes(wordId)
+      || (appState.dictionaryFavorites || []).some((word) => word.id === wordId);
+  }
+
+  function dictionaryFavoriteWords() {
+    return (appState.dictionaryFavorites || []).map((word) => ({
+      ...word,
+      lessonId: "",
+      lessonTitle: "在线词典",
+      lessonNumber: 0,
+      dictionaryFavorite: true
+    }));
+  }
+
+  function favoriteWordById(wordId) {
+    return wordById.get(wordId)
+      || dictionaryFavoriteWords().find((word) => word.id === wordId)
+      || null;
   }
 
   function favoriteStarMarkup(word) {
@@ -172,12 +190,16 @@
   }
 
   function renderStats() {
-    const validWordIds = new Set(allWords.map((word) => word.id));
+    const dictionaryWords = dictionaryFavoriteWords();
+    const validWordIds = new Set([...allWords, ...dictionaryWords].map((word) => word.id));
     const stats = [
       { value: lessons.length, label: t("stats.courses") },
       { value: allWords.length, label: t("stats.words") },
       { value: appState.mastered.filter((id) => validWordIds.has(id)).length, label: t("stats.mastered") },
-      { value: appState.favorites.filter((id) => validWordIds.has(id)).length, label: t("stats.favorites") }
+      {
+        value: appState.favorites.filter((id) => validWordIds.has(id)).length + dictionaryWords.length,
+        label: t("stats.favorites")
+      }
     ];
 
     $("#stats-grid").innerHTML = stats.map((item) => `
@@ -464,7 +486,10 @@
   }
 
   function renderFavorites() {
-    const favoriteWords = allWords.filter((word) => isFavorite(word.id));
+    const favoriteWords = [
+      ...allWords.filter((word) => appState.favorites.includes(word.id)),
+      ...dictionaryFavoriteWords()
+    ];
     const summary = $("#favorites-summary");
     const list = $("#favorites-list");
     summary.textContent = favoriteWords.length
@@ -488,7 +513,7 @@
 
   function syncFavoriteStars() {
     $$('[data-word-favorite]').forEach((button) => {
-      const word = wordById.get(button.dataset.wordFavorite);
+      const word = favoriteWordById(button.dataset.wordFavorite);
       if (!word) return;
       const favorite = isFavorite(word.id);
       const action = favorite ? t("favorites.remove") : t("favorites.add");
@@ -499,17 +524,20 @@
   }
 
   function toggleWordFavorite(wordId, lessonId) {
-    if (!wordById.has(wordId)) return;
-    appState = window.LearningStorage.toggleFavorite(wordId);
+    const word = favoriteWordById(wordId);
+    if (!word) return;
+    appState = word.dictionaryFavorite
+      ? window.LearningStorage.toggleDictionaryFavorite(word)
+      : window.LearningStorage.toggleFavorite(wordId);
     renderStats();
     renderFavorites();
-    renderSearch($("#search-input").value);
     syncFavoriteStars();
+    if (activeDictionaryResult) renderOnlineDictionaryResult(activeDictionaryResult);
 
     if ($("#deck-filter").value === "favorites") resetDeck(false);
     else updateCardStatus();
 
-    recordLessonActivity(lessonId || wordById.get(wordId).lessonId);
+    recordLessonActivity(lessonId || word.lessonId);
   }
 
   function applyTranslationSetting() {
@@ -637,6 +665,7 @@
   }
 
   function renderOnlineDictionaryResult(result) {
+    activeDictionaryResult = result;
     const phonetics = result.phonetics.length
       ? result.phonetics.map((phonetic) => `<span>${escapeHTML(phonetic)}</span>`).join("")
       : '<span class="dictionary-muted">暂未返回音标</span>';
@@ -653,6 +682,11 @@
     const sourceLine = result.source === "translation"
       ? "短语翻译来自 MyMemory"
       : `词条与词性来自 ${result.source === "datamuse" ? "Datamuse" : "Free Dictionary API"} · 中文释义来自 MyMemory`;
+    const normalized = normalizeWord(result.word);
+    const courseWord = vocabularyByEnglish.get(normalized);
+    const favoriteId = courseWord?.id || window.LearningStorage.dictionaryFavoriteId(result.word);
+    const favorite = isFavorite(favoriteId);
+    const favoriteAction = favorite ? "已收藏" : "收藏";
 
     $("#online-dictionary-content").innerHTML = `
       <article class="dictionary-entry">
@@ -661,9 +695,15 @@
             <h2 lang="en">${escapeHTML(result.word)}</h2>
             <div class="dictionary-phonetics">${phonetics}</div>
           </div>
-          <div class="dictionary-speech-actions" aria-label="选择在线单词发音">
-            <button type="button" data-speak="${escapeHTML(result.word)}" data-speech-accent="en-US">美式朗读</button>
-            <button type="button" data-speak="${escapeHTML(result.word)}" data-speech-accent="en-GB">英式朗读</button>
+          <div class="dictionary-result-actions">
+            <button class="dictionary-favorite-action" type="button" data-online-dictionary-favorite aria-pressed="${favorite}" aria-label="${favorite ? "取消收藏" : "收藏"} ${escapeHTML(result.word)}" title="${favorite ? "取消收藏" : "收藏"}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.63 5.33 5.88.85-4.25 4.14 1 5.85L12 16.9l-5.26 2.77 1-5.85L3.5 9.68l5.87-.85L12 3.5Z"></path></svg>
+              <span>${favoriteAction}</span>
+            </button>
+            <div class="dictionary-speech-actions" aria-label="选择在线单词发音">
+              <button type="button" data-speak="${escapeHTML(result.word)}" data-speech-accent="en-US">美式朗读</button>
+              <button type="button" data-speak="${escapeHTML(result.word)}" data-speech-accent="en-GB">英式朗读</button>
+            </div>
           </div>
         </div>
         ${resolvedNotice}
@@ -672,6 +712,36 @@
         <p class="dictionary-source">${sourceLine}</p>
       </article>
     `;
+  }
+
+  function dictionaryFavoriteChinese(result) {
+    if (result.translation) return result.translation;
+    const definitions = (result.meanings || []).flatMap((meaning) => {
+      return (meaning.definitions || []).map((definition) => definition.chinese).filter(Boolean);
+    });
+    return [...new Set(definitions)].slice(0, 4).join("；") || "中文释义暂未收录";
+  }
+
+  function toggleOnlineDictionaryFavorite() {
+    if (!activeDictionaryResult) return;
+    const result = activeDictionaryResult;
+    const courseWord = vocabularyByEnglish.get(normalizeWord(result.word));
+    if (courseWord) {
+      appState = window.LearningStorage.toggleFavorite(courseWord.id);
+    } else {
+      appState = window.LearningStorage.toggleDictionaryFavorite({
+        english: result.word,
+        ipa: result.phonetics?.[0] || "/音标暂未收录/",
+        chinese: dictionaryFavoriteChinese(result)
+      });
+    }
+    renderStats();
+    renderFavorites();
+    syncFavoriteStars();
+    if ($("#deck-filter").value === "favorites") resetDeck(false);
+    renderOnlineDictionaryResult(result);
+    const favoriteId = courseWord?.id || window.LearningStorage.dictionaryFavoriteId(result.word);
+    $("#online-dictionary-status").textContent = isFavorite(favoriteId) ? "已收藏" : "已取消收藏";
   }
 
   function dictionarySuggestionsMarkup(suggestions) {
@@ -690,6 +760,7 @@
     window.clearTimeout(onlineSearchTimer);
     onlineSearchController?.abort();
     onlineSearchController = null;
+    activeDictionaryResult = null;
     const sequence = ++onlineSearchSequence;
 
     $("#online-dictionary").hidden = false;
@@ -778,7 +849,7 @@
     const favoriteButton = $("[data-card-favorite]");
     const mastered = Boolean(word && appState.mastered.includes(word.id));
     const review = Boolean(word && appState.review.includes(word.id));
-    const favorite = Boolean(word && appState.favorites.includes(word.id));
+    const favorite = Boolean(word && isFavorite(word.id));
 
     masteredButton.setAttribute("aria-pressed", String(mastered));
     reviewButton.setAttribute("aria-pressed", String(review));
@@ -954,7 +1025,12 @@
   function resetDeck(shouldShuffle) {
     const filter = $("#deck-filter").value;
     if (filter === "all") deck = [...allWords];
-    else if (filter === "favorites") deck = allWords.filter((word) => isFavorite(word.id));
+    else if (filter === "favorites") {
+      deck = [
+        ...allWords.filter((word) => appState.favorites.includes(word.id)),
+        ...dictionaryFavoriteWords()
+      ];
+    }
     else deck = allWords.filter((word) => word.lessonId === filter);
 
     if (shouldShuffle) {
@@ -1022,7 +1098,7 @@
   }
 
   function recordLessonActivity(lessonId) {
-    if (!lessonId) return;
+    if (!lessonId || !getLesson(lessonId)) return;
     appState = window.LearningStorage.recordLesson(lessonId);
     renderRecentLessons();
   }
@@ -1404,6 +1480,10 @@
     });
 
     $("#online-dictionary-content").addEventListener("click", (event) => {
+      if (event.target.closest("[data-online-dictionary-favorite]")) {
+        toggleOnlineDictionaryFavorite();
+        return;
+      }
       const button = event.target.closest("[data-dictionary-suggestion]");
       if (!button) return;
       searchInput.value = button.dataset.dictionarySuggestion;

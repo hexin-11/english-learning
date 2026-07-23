@@ -2927,6 +2927,47 @@ body.lesson-is-dragging {
   font-size: 10px;
 }
 
+.dictionary-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.dictionary-favorite-action {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.dictionary-favorite-action:hover {
+  border-color: var(--inverse);
+  background: var(--surface-hover);
+}
+
+.dictionary-favorite-action svg {
+  width: 17px;
+  height: 17px;
+  fill: transparent;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.dictionary-favorite-action[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+
 .dictionary-meaning h3 small {
   color: var(--muted);
   font-size: 11px;
@@ -5384,6 +5425,16 @@ html[data-theme="dark"] .agent-launcher img {
     padding: 18px;
     border: 1px solid var(--line);
     border-radius: 14px;
+  }
+
+  .dictionary-result-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dictionary-favorite-action {
+    justify-content: center;
   }
 
   .popover-scrim {
