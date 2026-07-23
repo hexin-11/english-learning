@@ -23,6 +23,8 @@
     "hexin-word-image-choices:v2"
   ];
   const UPLOAD_DELAY_MS = 1200;
+  const AUTO_SYNC_POLL_MS = 15000;
+  const FOREGROUND_SYNC_THROTTLE_MS = 2000;
 
   let client = null;
   let activeUser = null;
@@ -33,6 +35,11 @@
   let pendingCloudRow = null;
   let recoveryMode = false;
   let uploadTimer = 0;
+  let backgroundSyncTimer = 0;
+  let pollTimer = 0;
+  let syncChannel = null;
+  let syncInFlight = false;
+  let lastBackgroundSyncAt = 0;
   let busy = false;
   let authPersistenceMode = "session";
   let authPersistenceExpiresAt = 0;
@@ -403,6 +410,8 @@
     $("#sync-choice").hidden = false;
     $("#sync-now").hidden = true;
     setStatus(t("chooseVersion"));
+    const dialog = $("#account-dialog");
+    if (dialog && !dialog.open) dialog.showModal();
   }
 
   function clearConflict() {
@@ -578,6 +587,7 @@
         lastCloudUpdatedAt: result.data?.updated_at || uploadedAt,
         lastCloudFingerprint: snapshotFingerprint(result.data?.data || snapshot)
       });
+      broadcastSnapshotUpdate(result.data?.updated_at || uploadedAt);
       clearConflict();
       updateLastSync();
       setIndicator("online");
@@ -590,6 +600,58 @@
     } finally {
       setBusy(false);
     }
+  }
+
+  function broadcastSnapshotUpdate(updatedAt) {
+    if (!syncChannel || !activeUser) return;
+    Promise.resolve(syncChannel.send({
+      type: "broadcast",
+      event: "snapshot-updated",
+      payload: { updatedAt: String(updatedAt || "") }
+    })).catch(() => {
+      // Realtime is an acceleration layer. The polling fallback will still
+      // discover this update if the websocket is temporarily unavailable.
+    });
+  }
+
+  function scheduleBackgroundSync(delay = 0) {
+    if (!client || !activeUser || pendingCloudRow) return;
+    clearTimeout(backgroundSyncTimer);
+    backgroundSyncTimer = window.setTimeout(() => {
+      backgroundSyncTimer = 0;
+      lastBackgroundSyncAt = Date.now();
+      syncNow({ background: true, source: "automatic" });
+    }, Math.max(0, Number(delay) || 0));
+  }
+
+  function stopContinuousSync() {
+    clearTimeout(backgroundSyncTimer);
+    clearInterval(pollTimer);
+    backgroundSyncTimer = 0;
+    pollTimer = 0;
+    if (client && syncChannel) {
+      try { client.removeChannel(syncChannel); } catch (_error) { /* no-op */ }
+    }
+    syncChannel = null;
+  }
+
+  function startContinuousSync() {
+    stopContinuousSync();
+    if (!client || !activeUser) return;
+
+    syncChannel = client
+      .channel(`snapshot-sync:${activeUser.id}`, {
+        config: { broadcast: { self: false } }
+      })
+      .on("broadcast", { event: "snapshot-updated" }, () => {
+        scheduleBackgroundSync(120);
+      })
+      .subscribe();
+
+    pollTimer = window.setInterval(() => {
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
+      scheduleBackgroundSync(0);
+    }, AUTO_SYNC_POLL_MS);
   }
 
   function applyCloudRow(row) {
@@ -612,11 +674,15 @@
     }
   }
 
-  async function syncNow() {
-    if (!client || !activeUser || busy) return;
-    setBusy(true);
-    setIndicator("saving");
-    setStatus(t("checking"));
+  async function syncNow(options) {
+    const background = options?.background === true;
+    if (!client || !activeUser || busy || syncInFlight) return;
+    syncInFlight = true;
+    if (!background) {
+      setBusy(true);
+      setIndicator("saving");
+      setStatus(t("checking"));
+    }
     try {
       const row = await fetchCloudRow();
       if (!row) {
@@ -648,7 +714,7 @@
         showConflict(row);
         setIndicator("error");
       } else if (decision.action === "upload") {
-        setBusy(false);
+        if (!background) setBusy(false);
         await uploadLocalSnapshot();
         return;
       } else if (decision.action === "download") {
@@ -665,14 +731,15 @@
           lastCloudFingerprint: decision.cloudFingerprint
         });
         setIndicator("online");
-        setStatus(t("synced"));
+        if (!background) setStatus(t("synced"));
         updateLastSync();
       }
     } catch (error) {
       setIndicator("error");
       setStatus(friendlyError(error), "error");
     } finally {
-      setBusy(false);
+      syncInFlight = false;
+      if (!background) setBusy(false);
     }
   }
 
@@ -708,6 +775,7 @@
   async function adoptSession(session) {
     const nextUser = session?.user || null;
     if (!nextUser) {
+      stopContinuousSync();
       activeUser = null;
       activeOwnsPrivateLessons = false;
       setRole("user", "signed-out");
@@ -737,9 +805,14 @@
     }
     showSignedIn();
     dispatchAuthState();
-    if (initializedUserId === nextUser.id) return;
+    if (initializedUserId === nextUser.id) {
+      startContinuousSync();
+      scheduleBackgroundSync(0);
+      return;
+    }
     initializedUserId = nextUser.id;
     await reconcileFirstSession();
+    startContinuousSync();
   }
 
   function markLocalChange(event) {
@@ -754,7 +827,10 @@
     // Always read the cloud row before an automatic upload. Otherwise an old
     // phone tab could change one local setting and overwrite newer lessons
     // created on the computer before the user presses “Sync now”.
-    uploadTimer = window.setTimeout(syncNow, UPLOAD_DELAY_MS);
+    uploadTimer = window.setTimeout(
+      () => syncNow({ background: true, source: "local-change" }),
+      UPLOAD_DELAY_MS
+    );
     setIndicator("saving");
     setStatus(t("waitingToSave"));
   }
@@ -1100,6 +1176,15 @@
 
     window.addEventListener("hexin:data-changed", markLocalChange);
     window.addEventListener("storage", markLocalChange);
+    window.addEventListener("online", () => scheduleBackgroundSync(0));
+    window.addEventListener("focus", () => {
+      if (Date.now() - lastBackgroundSyncAt >= FOREGROUND_SYNC_THROTTLE_MS) {
+        scheduleBackgroundSync(0);
+      }
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") scheduleBackgroundSync(0);
+    });
     const rememberInput = $("#account-remember-login");
     if (rememberInput) {
       const persistence = authPersistenceSnapshot();

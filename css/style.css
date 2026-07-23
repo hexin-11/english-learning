@@ -2280,6 +2280,7 @@ body.lesson-is-dragging {
 .cloud-unconfigured p,
 .sync-choice p,
 .account-last-sync,
+.account-auto-sync,
 .cloud-status,
 .cloud-privacy {
   margin: 0;
@@ -2362,6 +2363,21 @@ body.lesson-is-dragging {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.account-auto-sync {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.account-auto-sync::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #2f9e44;
+  content: "";
 }
 
 .account-remember-option {

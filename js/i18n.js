@@ -395,6 +395,23 @@
     "cloud.passwordMustChange": "新しいパスワードは現在のパスワードと異なる必要があります。"
   });
 
+  Object.assign(messages.zh, {
+    "cloud.syncNow": "检查同步状态",
+    "cloud.autoSyncOn": "自动同步已开启；其他设备的更新会自动出现。"
+  });
+  Object.assign(messages.en, {
+    "cloud.syncNow": "Check sync",
+    "cloud.autoSyncOn": "Automatic sync is on. Updates from your other devices will appear automatically."
+  });
+  Object.assign(messages.ko, {
+    "cloud.syncNow": "동기화 확인",
+    "cloud.autoSyncOn": "자동 동기화가 켜져 있습니다. 다른 기기의 변경 사항이 자동으로 표시됩니다."
+  });
+  Object.assign(messages.ja, {
+    "cloud.syncNow": "同期を確認",
+    "cloud.autoSyncOn": "自動同期は有効です。他の端末の更新が自動的に反映されます。"
+  });
+
   function current() {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);

@@ -69,13 +69,33 @@ assert.equal(
 
 assert.match(
   integrationSource,
-  /uploadTimer\s*=\s*window\.setTimeout\(syncNow,\s*UPLOAD_DELAY_MS\)/,
+  /uploadTimer\s*=\s*window\.setTimeout\([\s\S]*?syncNow\(\{\s*background:\s*true,\s*source:\s*"local-change"\s*\}\)[\s\S]*?UPLOAD_DELAY_MS\s*\)/,
   "Automatic saves must reconcile with cloud data before uploading"
 );
 assert.doesNotMatch(
   integrationSource,
   /uploadTimer\s*=\s*window\.setTimeout\(uploadLocalSnapshot,\s*UPLOAD_DELAY_MS\)/,
   "Automatic saves must never blindly overwrite a newer cloud snapshot"
+);
+assert.match(
+  integrationSource,
+  /\.channel\(`snapshot-sync:\$\{activeUser\.id\}`/,
+  "Each signed-in account should receive private snapshot update notifications on its own realtime channel"
+);
+assert.match(
+  integrationSource,
+  /event:\s*"snapshot-updated"/,
+  "Uploads should notify the user's other devices immediately"
+);
+assert.match(
+  integrationSource,
+  /window\.setInterval\([\s\S]*?AUTO_SYNC_POLL_MS\s*\)/,
+  "A polling fallback should recover updates if realtime websocket delivery is unavailable"
+);
+assert.match(
+  integrationSource,
+  /document\.addEventListener\("visibilitychange"[\s\S]*?scheduleBackgroundSync\(0\)/,
+  "Returning to the page should immediately check for changes from another device"
 );
 
 console.log("Cloud sync decision tests passed.");
