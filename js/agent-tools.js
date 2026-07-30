@@ -229,6 +229,36 @@
     return [...new Set(normalized.match(/[a-z][a-z'\u2019-]{1,}|[\u3400-\u9fff]{2,}/g) || [])].slice(0, 20);
   }
 
+  function requestIntent(query) {
+    const message = cleanText(query, 1000);
+    const english = [...new Set((message.match(/[A-Za-z][A-Za-z'’ -]{0,80}/g) || [])
+      .map((item) => item.trim().replace(/\s+/g, " "))
+      .filter(Boolean))].slice(0, 8);
+    const rules = [
+      ["unfavorite_word", /(取消收藏|移出收藏)/, "update_word_state"],
+      ["favorite_word", /(收藏|加入收藏)/, "update_word_state"],
+      ["delete_lesson", /(删除|删掉|移除).*(课|课程)|(?:课|课程).*(删除|删掉|移除)/, "delete_lesson"],
+      ["rename_lesson", /(改名|重命名|修改课名)/, "edit_lesson"],
+      ["create_lesson", /(创建|新建|生成|添加).*(课|课程)|(?:课|课程).*(创建|新建)/, "create_lesson"],
+      ["create_presentation", /(PPT|ppt|演示文稿|幻灯片)/, "create_presentation"],
+      ["export_lesson", /(导出|下载).*(PDF|Word|pdf|word|课程)/, "export_lesson"],
+      ["review_or_quiz", /(复习|错题|出题|测验|薄弱|学习计划)/, "get_review_material"],
+      ["dictionary_lookup", /(什么意思|词义|音标|词性|怎么读|解释.*(?:单词|短语))/, "lookup_dictionary_word"],
+      ["grammar_analysis", /(语法|时态|句型|成分分析)/, "none"],
+      ["sentence_correction", /(批改|纠正|改错|润色).*(句|英文)|(?:句|英文).*(批改|纠正|改错|润色)/, "none"],
+      ["course_query", /(第[一二三四五六七八九十\d]+课|课程).*(总结|内容|单词|句子|讲解)/, "get_lesson_detail"],
+      ["navigate", /(打开|前往|进入).*(首页|课程|搜索|收藏|单词卡|拼写)/, "navigate_to_page"]
+    ];
+    const matched = rules.find(([, pattern]) => pattern.test(message));
+    return {
+      latestMessage: message,
+      type: matched?.[0] || "general_chat",
+      suggestedFirstTool: matched?.[2] || "none",
+      englishEntities: english,
+      explicitAction: Boolean(matched && !["dictionary_lookup", "grammar_analysis", "sentence_correction", "course_query", "review_or_quiz"].includes(matched[0]))
+    };
+  }
+
   function relevantLessons(query) {
     const normalized = cleanText(query, 1000).toLocaleLowerCase("en");
     const terms = queryTerms(normalized);
@@ -271,6 +301,7 @@
 
   function context(query) {
     return {
+      requestIntent: requestIntent(query),
       overview: learningOverview(),
       memory: window.XiaoHeMemory?.context?.() || {},
       relevantLessons: relevantLessons(query),

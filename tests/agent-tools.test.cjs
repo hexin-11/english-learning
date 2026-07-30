@@ -20,6 +20,7 @@ assert.match(agentSource, /\/api\/chat\/stream/);
 assert.match(agentSource, /response\.body\.getReader\(\)/);
 assert.match(agentSource, /dataset\.agentStreaming/);
 assert.match(promptSource, /绝不能解释 hiagent/);
+assert.match(promptSource, /requestIntent 是网页只根据“最新一条消息”/);
 const baseLesson = {
   id: "lesson-1",
   number: 1,
@@ -102,6 +103,12 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   const relevantContext = window.XiaoHeTools.context("hello 怎么读");
   assert.equal(relevantContext.relevantLessons[0].title, "第一课");
   assert.equal(relevantContext.relevantLessons[0].words[0].english, "hello");
+  assert.equal(relevantContext.requestIntent.type, "dictionary_lookup");
+  assert.equal(relevantContext.requestIntent.suggestedFirstTool, "lookup_dictionary_word");
+  const favoriteContext = window.XiaoHeTools.context("把 intimidate 加入收藏");
+  assert.equal(favoriteContext.requestIntent.type, "favorite_word");
+  assert.equal(favoriteContext.requestIntent.englishEntities[0], "intimidate");
+  assert.equal(window.XiaoHeTools.context("hi").requestIntent.type, "general_chat");
 
   const reviewMaterial = await window.XiaoHeTools.execute({ name: "get_review_material", args: { limit: 10 } });
   assert.equal(reviewMaterial.ok, true);
