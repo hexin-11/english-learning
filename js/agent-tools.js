@@ -753,7 +753,11 @@
     describe,
     summarizeTrace,
     matchDirectCommand,
-    requiresConfirmation: (call) => MUTATING_TOOLS.has(call?.name),
+    isMutation: (call) => MUTATING_TOOLS.has(call?.name),
+    requiresConfirmation: (call) => {
+      if (call?.name === "update_word_state" && ["favorite", "unfavorite"].includes(call?.args?.action)) return false;
+      return MUTATING_TOOLS.has(call?.name);
+    },
     takeReloadRequest
   });
 })();

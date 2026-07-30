@@ -855,32 +855,33 @@
     const results = new Array(calls.length);
     const executeOne = async (call, index) => {
       const needsApproval = window.XiaoHeTools.requiresConfirmation(call);
+      const isMutation = window.XiaoHeTools.isMutation?.(call) ?? needsApproval;
       const key = toolExecutionKey(call);
       let result;
-      if (needsApproval && completedMutations?.has(key)) {
+      if (isMutation && completedMutations?.has(key)) {
         result = { ...completedMutations.get(key), repeatedCallSkipped: true };
-      } else if (!needsApproval && completedReads?.has(key)) {
+      } else if (!isMutation && completedReads?.has(key)) {
         result = { ...completedReads.get(key), repeatedCallSkipped: true };
       } else {
         result = needsApproval && !approved
           ? { ok: false, error: "USER_DENIED", message: text("denied") }
           : await window.XiaoHeTools.execute(call);
-        if (needsApproval && result?.ok && window.XiaoHeTools?.verify) {
+        if (isMutation && result?.ok && window.XiaoHeTools?.verify) {
           updateTypingStatus(`${text("verifying")} · ${window.XiaoHeTools.describe(call)}`);
           const verification = await window.XiaoHeTools.verify(call, result);
           result = { ...result, verification };
           if (!verification?.verified) result = { ...result, ok: false, error: "ACTION_NOT_VERIFIED" };
         }
-        if (needsApproval && result?.ok) completedMutations?.set(key, result);
-        if (!needsApproval && result?.ok) completedReads?.set(key, result);
+        if (isMutation && result?.ok) completedMutations?.set(key, result);
+        if (!isMutation && result?.ok) completedReads?.set(key, result);
       }
       results[index] = { id: call.id || "", name: call.name, result };
       completeTaskStep(window.XiaoHeTools.describe(call));
     };
     const readCalls = calls.map((call, index) => ({ call, index }))
-      .filter(({ call }) => !window.XiaoHeTools.requiresConfirmation(call));
+      .filter(({ call }) => !(window.XiaoHeTools.isMutation?.(call) ?? window.XiaoHeTools.requiresConfirmation(call)));
     const writeCalls = calls.map((call, index) => ({ call, index }))
-      .filter(({ call }) => window.XiaoHeTools.requiresConfirmation(call));
+      .filter(({ call }) => window.XiaoHeTools.isMutation?.(call) ?? window.XiaoHeTools.requiresConfirmation(call));
     const readGroups = new Map();
     readCalls.forEach((item) => {
       const key = toolExecutionKey(item.call);

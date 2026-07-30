@@ -136,6 +136,10 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   }]), /已将 intimidate 收藏.*恐吓/);
 
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "get_lesson_detail" }), false);
+  assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "update_word_state", args: { action: "favorite" } }), false);
+  assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "update_word_state", args: { action: "unfavorite" } }), false);
+  assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "update_word_state", args: { action: "mastered" } }), true);
+  assert.equal(window.XiaoHeTools.isMutation({ name: "update_word_state", args: { action: "favorite" } }), true);
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "create_lesson" }), true);
   assert.equal(window.XiaoHeTools.requiresConfirmation({ name: "create_presentation" }), true);
   assert.match(source, /pptx\.writeFile\(\{ fileName, compression: true \}\)/);
