@@ -1388,6 +1388,14 @@ main {
   max-width: 570px;
 }
 
+.import-preview-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
 .lesson-tools {
   display: flex;
   margin-bottom: 16px;
@@ -5361,6 +5369,11 @@ html[data-theme="dark"] .agent-launcher img {
   .import-preview-actions .button,
   .imported-delete {
     width: 100%;
+  }
+
+  .import-preview-buttons {
+    width: 100%;
+    flex-direction: column-reverse;
   }
 
   .lesson-tool-actions .button {

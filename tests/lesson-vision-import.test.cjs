@@ -64,5 +64,7 @@ assert.match(importerSource, /补齐缺失的音标、单词释义和整句翻�
 assert.match(importerSource, /tessedit_pageseg_mode:\s*"6"/);
 assert.match(importerSource, /prepareOcrCanvas/);
 assert.match(indexSource, /导入内容会发送给小何智能识别服务/);
+assert.match(indexSource, /id="import-cancel"[^>]*>取消导入</);
+assert.match(importerSource, /\$\("#import-cancel"\)\.addEventListener\("click", resetImporter\)/);
 
 console.log("Lesson vision import tests passed.");

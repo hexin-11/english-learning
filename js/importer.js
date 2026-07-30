@@ -839,8 +839,13 @@
     activeRawText = "";
     activeWarnings = [];
     $("#lesson-file-input").value = "";
+    $("#import-title").value = "";
+    $("#import-words").value = "";
+    $("#import-sentences").value = "";
+    $("#import-raw-text").value = "";
     $("#import-preview").hidden = true;
     $("#import-status").hidden = true;
+    $("#lesson-dropzone").scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   async function handleFile(file) {
@@ -928,6 +933,7 @@
     dropzone.addEventListener("drop", (event) => handleFile(event.dataTransfer?.files?.[0]));
 
     $("#import-reset").addEventListener("click", resetImporter);
+    $("#import-cancel").addEventListener("click", resetImporter);
     $("#import-save").addEventListener("click", () => {
       const number = Math.max(1, Number($("#import-save").dataset.lessonNumber) || 1);
       const lesson = {
