@@ -31,6 +31,7 @@
   });
 
   let appState = window.LearningStorage.getState();
+  const renderedViews = new Set();
   let deck = [...allWords];
   let deckIndex = 0;
   let cardFlipped = false;
@@ -1085,6 +1086,14 @@
       if (link.dataset.nav === activeView) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
+    if (!renderedViews.has(activeView)) {
+      if (activeView === "lessons") renderLessons();
+      else if (activeView === "search") renderSearch($("#search-input")?.value || "");
+      else if (activeView === "favorites") renderFavorites();
+      else if (activeView === "flashcards") renderFlashcard();
+      renderedViews.add(activeView);
+      window.SiteI18n?.apply?.(document.querySelector(`[data-view="${activeView}"]`));
+    }
     if (activeView === "flashcards") renderCardImage(getCurrentWord());
     else {
       if (wordImageController) wordImageController.abort();
@@ -1110,7 +1119,11 @@
     const routeFromHash = () => showView(window.location.hash.slice(1) || "home");
     window.addEventListener("hashchange", routeFromHash);
     window.addEventListener("hexin:auth-changed", () => {
+      renderedViews.delete("lessons");
+      renderedViews.delete("favorites");
+      renderedViews.delete("flashcards");
       renderLessons();
+      renderedViews.add("lessons");
       window.SiteI18n?.apply?.($("#lesson-list"));
       routeFromHash();
     });
@@ -1750,10 +1763,6 @@
     renderDynamicControls();
     renderStats();
     renderRecentLessons();
-    renderLessons();
-    renderFavorites();
-    renderSearch("");
-    renderFlashcard();
     setupNavigation();
     setupTheme();
     setupLessonReordering();

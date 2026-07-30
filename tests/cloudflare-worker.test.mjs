@@ -177,6 +177,8 @@ try {
   assert.equal(visionBody.generationConfig.temperature, 0.1);
   assert.equal(visionBody.generationConfig.mediaResolution, "MEDIA_RESOLUTION_HIGH");
   assert.match(visionBody.systemInstruction.parts[0].text, /表格的一行可能同时有两组/);
+  assert.match(visionBody.systemInstruction.parts[0].text, /双栏页面分别从上到下读取/);
+  assert.match(visionBody.systemInstruction.parts[0].text, /关键字母不确定/);
 
   globalThis.fetch = async (_url, options) => {
     upstreamRequest = { url: String(_url), options };

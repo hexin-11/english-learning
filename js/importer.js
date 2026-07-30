@@ -5,6 +5,9 @@
   const MAX_FILE_SIZE = 20 * 1024 * 1024;
   const MAX_PDF_PAGES = 30;
   const MAX_OCR_PAGES = 10;
+  const MAX_VISION_PDF_PAGES = 6;
+  const PDF_EXTRACTION_CONCURRENCY = 4;
+  const PDF_VISION_CONCURRENCY = 2;
   const MAX_WORDS = 300;
   const MAX_SENTENCES = 220;
   const MAX_VISION_IMAGE_BYTES = 1400 * 1024;
@@ -14,6 +17,7 @@
   const MAMMOTH_URL = "https://cdn.jsdelivr.net/npm/mammoth@1.9.1/mammoth.browser.min.js";
   const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   const ACCEPTED_EXTENSIONS = new Set(["pdf", "docx", "jpg", "jpeg", "png", "webp", "bmp"]);
+  const SUPPORTED_VISION_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
   const CHINESE_NUMERALS = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
 
   let pdfModulePromise = null;
@@ -219,7 +223,24 @@
     });
   }
 
+  async function mapLimit(items, limit, mapper) {
+    const results = new Array(items.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) {
+        const index = cursor;
+        cursor += 1;
+        results[index] = await mapper(items[index], index);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+
   async function prepareVisionImage(file) {
+    if (SUPPORTED_VISION_TYPES.has(file.type) && file.size <= MAX_VISION_IMAGE_BYTES) {
+      return { mimeType: file.type, data: await blobBase64(file) };
+    }
     const image = await loadImage(file);
     const sourceWidth = image.naturalWidth || image.width;
     const sourceHeight = image.naturalHeight || image.height;
@@ -273,11 +294,9 @@
     };
   }
 
-  async function recognizeImageWithVision(file) {
+  async function recognizeVisionPayload(image) {
     const base = agentApiBase();
     if (!base) throw new Error("智能识别后端未连接。");
-    setStatus("正在智能识别图片", "逐行读取词表，并重建被换行拆开的完整句子…", 18, "working");
-    const image = await prepareVisionImage(file);
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 65000);
     try {
@@ -295,6 +314,11 @@
     } finally {
       window.clearTimeout(timer);
     }
+  }
+
+  async function recognizeImageWithVision(file) {
+    setStatus("正在智能识别图片", "逐行读取词表，并重建被换行拆开的完整句子…", 18, "working");
+    return recognizeVisionPayload(await prepareVisionImage(file));
   }
 
   async function enrichLessonStructure(rawText, lesson) {
@@ -398,6 +422,70 @@
     return worker;
   }
 
+  async function preparePdfPageVision(page) {
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(2.2, MAX_VISION_IMAGE_DIMENSION / Math.max(baseViewport.width, baseViewport.height));
+    const viewport = page.getViewport({ scale: Math.max(1.5, scale) });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const context = canvas.getContext("2d", { alpha: false });
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+    let quality = 0.92;
+    let blob = await canvasBlob(canvas, quality);
+    while (blob.size > MAX_VISION_IMAGE_BYTES && quality > 0.6) {
+      quality -= 0.08;
+      blob = await canvasBlob(canvas, quality);
+    }
+    canvas.width = 1;
+    canvas.height = 1;
+    if (blob.size > MAX_VISION_IMAGE_BYTES) throw new Error("PDF 页面图像过大");
+    return { mimeType: "image/jpeg", data: await blobBase64(blob) };
+  }
+
+  function mergeVisionLessons(parts) {
+    const wordKeys = new Set();
+    const sentenceKeys = new Set();
+    const words = [];
+    const sentences = [];
+    const raw = [];
+    let title = "";
+    parts.filter(Boolean).forEach((lesson) => {
+      title ||= lesson.title || "";
+      if (lesson.rawText) raw.push(lesson.rawText);
+      (lesson.words || []).forEach((word) => {
+        const key = normalizeSpaces(word.english).toLocaleLowerCase("en");
+        if (!key || wordKeys.has(key)) return;
+        wordKeys.add(key);
+        words.push(word);
+      });
+      (lesson.sentences || []).forEach((sentence) => {
+        const key = normalizeSpaces(sentence.english).toLocaleLowerCase("en");
+        if (!key || sentenceKeys.has(key)) return;
+        sentenceKeys.add(key);
+        sentences.push(sentence);
+      });
+    });
+    const fallbackRaw = [
+      title,
+      ...words.map((word) => `${word.english} | ${word.ipa} | ${word.chinese}`),
+      ...sentences.map((sentence) => `${sentence.english} | ${sentence.chinese}`)
+    ].filter(Boolean).join("\n");
+    return { title, words, sentences, rawText: normalizeSpaces(raw.join("\n\n") || fallbackRaw) };
+  }
+
+  async function recognizeScannedPdfWithVision(pdf, pageCount) {
+    const pageNumbers = Array.from({ length: pageCount }, (_, index) => index + 1);
+    const lessons = await mapLimit(pageNumbers, PDF_VISION_CONCURRENCY, async (pageNumber) => {
+      setStatus("正在智能识别扫描版 PDF", `分析第 ${pageNumber} / ${pageCount} 页`, 28 + (pageNumber / pageCount) * 58, "working");
+      const page = await pdf.getPage(pageNumber);
+      return recognizeVisionPayload(await preparePdfPageVision(page));
+    });
+    return mergeVisionLessons(lessons);
+  }
+
   async function ocrPdf(pdf, pageCount) {
     const worker = await createOcrWorker((progress) => {
       setStatus("正在识别扫描版 PDF", "OCR 首次使用需要下载语言模型，请保持联网。", 35 + progress * 50, "working");
@@ -430,14 +518,14 @@
     const data = new Uint8Array(await file.arrayBuffer());
     const pdf = await pdfjs.getDocument({ data }).promise;
     const pageCount = Math.min(pdf.numPages, MAX_PDF_PAGES);
-    const pages = [];
+    const pageNumbers = Array.from({ length: pageCount }, (_, index) => index + 1);
 
     if (pdf.numPages > MAX_PDF_PAGES) activeWarnings.push(`PDF 共 ${pdf.numPages} 页，本次只读取前 ${MAX_PDF_PAGES} 页。`);
-    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-      setStatus("正在提取 PDF 文字", `第 ${pageNumber} / ${pageCount} 页`, 12 + (pageNumber / pageCount) * 50, "working");
+    const pages = await mapLimit(pageNumbers, PDF_EXTRACTION_CONCURRENCY, async (pageNumber) => {
+      setStatus("正在并行提取 PDF 文字", `第 ${pageNumber} / ${pageCount} 页`, 12 + (pageNumber / pageCount) * 50, "working");
       const page = await pdf.getPage(pageNumber);
-      pages.push(textContentFromPage(await page.getTextContent()));
-    }
+      return textContentFromPage(await page.getTextContent());
+    });
 
     const extracted = normalizeSpaces(pages.join("\n\n"));
     const usefulCharacters = (extracted.match(/[A-Za-z\u3400-\u9fff]/g) || []).length;
@@ -447,7 +535,20 @@
     }
 
     const ocrPages = Math.min(pdf.numPages, MAX_OCR_PAGES);
-    if (pdf.numPages > MAX_OCR_PAGES) activeWarnings.push(`扫描版 PDF 的 OCR 只识别前 ${MAX_OCR_PAGES} 页。`);
+    const visionPages = Math.min(pdf.numPages, MAX_VISION_PDF_PAGES);
+    if (agentApiBase()) {
+      try {
+        if (pdf.numPages > MAX_VISION_PDF_PAGES) activeWarnings.push(`扫描版 PDF 智能识别前 ${MAX_VISION_PDF_PAGES} 页；建议把长文档拆分后导入以获得更高精度。`);
+        const lesson = await recognizeScannedPdfWithVision(pdf, visionPages);
+        if (lesson.words.length || lesson.sentences.length) {
+          activeWarnings.push("扫描版 PDF 已使用小何视觉模型分批识别并合并去重，复杂表格仍建议在保存前快速核对。");
+          return { rawText: lesson.rawText, structured: { words: lesson.words, sentences: lesson.sentences }, title: lesson.title, intelligent: false };
+        }
+      } catch (_visionError) {
+        activeWarnings.push("扫描版 PDF 智能识别暂时不可用，已自动切换到本地 OCR。");
+      }
+    }
+    if (pdf.numPages > MAX_OCR_PAGES) activeWarnings.push(`扫描版 PDF 的本地 OCR 只识别前 ${MAX_OCR_PAGES} 页。`);
     activeWarnings.push("没有检测到足够的可复制文字，已自动改用 OCR。请在保存前检查识别结果。");
     return normalizeSpaces(await ocrPdf(pdf, ocrPages));
   }
@@ -873,7 +974,17 @@
       let structured = null;
       let detectedTitle = "";
       let intelligentlyStructured = false;
-      if (extension === "pdf") activeRawText = await extractPdf(file);
+      if (extension === "pdf") {
+        const pdfResult = await extractPdf(file);
+        if (pdfResult && typeof pdfResult === "object") {
+          activeRawText = pdfResult.rawText || "";
+          structured = pdfResult.structured || null;
+          detectedTitle = pdfResult.title || "";
+          intelligentlyStructured = pdfResult.intelligent === true;
+        } else {
+          activeRawText = pdfResult;
+        }
+      }
       else if (extension === "docx") activeRawText = await extractDocx(file);
       else {
         const imageResult = await extractImage(file);
