@@ -588,6 +588,15 @@
         </div>
       </header>
 
+      <div class="agent-task-progress" id="agent-task-progress" role="status" aria-live="polite" hidden>
+        <div class="agent-task-progress-copy">
+          <strong id="agent-task-progress-title">正在处理任务</strong>
+          <span id="agent-task-progress-count">0 / 0</span>
+        </div>
+        <progress id="agent-task-progress-bar" max="1" value="0">0%</progress>
+        <small id="agent-task-progress-detail"></small>
+      </div>
+
       <div class="agent-messages" id="agent-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
 
       <div class="agent-quick-actions" aria-label="快捷提问">

@@ -51,6 +51,9 @@
       typing: "小何正在想",
       working: "小何正在执行任务",
       verifying: "小何正在核验结果",
+      taskRunning: "正在处理任务",
+      taskFinalizing: "正在整理结果",
+      taskDone: "任务已完成",
       approval: "小何计划执行以下操作：",
       approvalQuestion: "\n\n是否允许执行？",
       denied: "你没有授权这项操作，我没有修改任何数据。",
@@ -96,6 +99,9 @@
       typing: "Xiao He is thinking",
       working: "Xiao He is running the task",
       verifying: "Xiao He is verifying the result",
+      taskRunning: "Running task",
+      taskFinalizing: "Preparing result",
+      taskDone: "Task complete",
       approval: "Xiao He plans to perform these actions:",
       approvalQuestion: "\n\nAllow these actions?",
       denied: "You did not approve the action, so no data was changed.",
@@ -141,6 +147,9 @@
       typing: "샤오허가 생각 중",
       working: "샤오허가 작업을 실행 중",
       verifying: "샤오허가 결과를 확인 중",
+      taskRunning: "작업 처리 중",
+      taskFinalizing: "결과 정리 중",
+      taskDone: "작업 완료",
       approval: "샤오허가 다음 작업을 실행하려고 합니다:",
       approvalQuestion: "\n\n실행을 허용할까요?",
       denied: "작업이 승인되지 않아 데이터를 변경하지 않았습니다.",
@@ -186,6 +195,9 @@
       typing: "考えています",
       working: "タスクを実行しています",
       verifying: "結果を確認しています",
+      taskRunning: "タスクを実行中",
+      taskFinalizing: "結果を整理中",
+      taskDone: "完了しました",
       approval: "次の操作を実行します:",
       approvalQuestion: "\n\n実行を許可しますか？",
       denied: "許可されなかったため、データは変更していません。",
@@ -203,6 +215,7 @@
     checked: false,
     attachment: null,
     processingImage: false,
+    taskProgress: { completed: 0, total: 0 },
     catReactionTimer: null,
     drag: {
       pointerId: null,
@@ -739,6 +752,42 @@
     }
   }
 
+  function resetTaskProgress() {
+    state.taskProgress = { completed: 0, total: 0 };
+    const panel = $("#agent-task-progress");
+    if (panel) panel.hidden = true;
+  }
+
+  function addTaskSteps(count) {
+    state.taskProgress.total += Math.max(0, Number(count) || 0);
+    renderTaskProgress(text("taskRunning"), "");
+  }
+
+  function completeTaskStep(detail) {
+    state.taskProgress.completed = Math.min(state.taskProgress.total, state.taskProgress.completed + 1);
+    renderTaskProgress(text("taskRunning"), detail);
+  }
+
+  function renderTaskProgress(title, detail) {
+    const panel = $("#agent-task-progress");
+    if (!panel) return;
+    const total = Math.max(1, state.taskProgress.total);
+    panel.hidden = false;
+    $("#agent-task-progress-title").textContent = title;
+    $("#agent-task-progress-count").textContent = `${state.taskProgress.completed} / ${state.taskProgress.total}`;
+    $("#agent-task-progress-bar").max = total;
+    $("#agent-task-progress-bar").value = state.taskProgress.completed;
+    $("#agent-task-progress-detail").textContent = detail || "";
+    placePanel();
+  }
+
+  function finishTaskProgress() {
+    if (!state.taskProgress.total) return;
+    state.taskProgress.completed = state.taskProgress.total;
+    renderTaskProgress(text("taskDone"), "");
+    window.setTimeout(resetTaskProgress, 1600);
+  }
+
   function toolExecutionKey(call) {
     try {
       return `${call?.name || ""}:${JSON.stringify(call?.args || {})}`;
@@ -749,7 +798,10 @@
 
   async function executeToolCalls(calls, completedMutations, completedReads) {
     if (!window.XiaoHeTools?.execute) {
-      return calls.map((call) => ({ id: call.id || "", name: call.name, result: { ok: false, error: "TOOLS_UNAVAILABLE" } }));
+      return calls.map((call) => {
+        completeTaskStep(call.name);
+        return { id: call.id || "", name: call.name, result: { ok: false, error: "TOOLS_UNAVAILABLE" } };
+      });
     }
     const confirmationKeys = new Set();
     const guarded = calls.filter((call) => {
@@ -764,8 +816,8 @@
       const plan = guarded.map((call, index) => `${index + 1}. ${window.XiaoHeTools.describe(call)}`).join("\n");
       approved = window.confirm(`${text("approval")}\n\n${plan}${text("approvalQuestion")}`);
     }
-    const results = [];
-    for (const call of calls) {
+    const results = new Array(calls.length);
+    const executeOne = async (call, index) => {
       const needsApproval = window.XiaoHeTools.requiresConfirmation(call);
       const key = toolExecutionKey(call);
       let result;
@@ -786,8 +838,32 @@
         if (needsApproval && result?.ok) completedMutations?.set(key, result);
         if (!needsApproval && result?.ok) completedReads?.set(key, result);
       }
-      results.push({ id: call.id || "", name: call.name, result });
-    }
+      results[index] = { id: call.id || "", name: call.name, result };
+      completeTaskStep(window.XiaoHeTools.describe(call));
+    };
+    const readCalls = calls.map((call, index) => ({ call, index }))
+      .filter(({ call }) => !window.XiaoHeTools.requiresConfirmation(call));
+    const writeCalls = calls.map((call, index) => ({ call, index }))
+      .filter(({ call }) => window.XiaoHeTools.requiresConfirmation(call));
+    const readGroups = new Map();
+    readCalls.forEach((item) => {
+      const key = toolExecutionKey(item.call);
+      if (!readGroups.has(key)) readGroups.set(key, []);
+      readGroups.get(key).push(item);
+    });
+    await Promise.all([...readGroups.values()].map(async (group) => {
+      const [first, ...duplicates] = group;
+      await executeOne(first.call, first.index);
+      duplicates.forEach(({ call, index }) => {
+        results[index] = {
+          ...results[first.index],
+          id: call.id || "",
+          result: { ...results[first.index].result, repeatedCallSkipped: true }
+        };
+        completeTaskStep(window.XiaoHeTools.describe(call));
+      });
+    }));
+    for (const { call, index } of writeCalls) await executeOne(call, index);
     return results;
   }
 
@@ -818,6 +894,7 @@
     clearAttachment();
     resizeInput();
     setBusy(true);
+    resetTaskProgress();
 
     const list = $("#agent-messages");
     list.append(messageElement("assistant", text("typing"), true));
@@ -831,6 +908,7 @@
       const directCalls = attachment ? [] : (window.XiaoHeTools?.matchDirectCommand?.(message) || []);
       if (directCalls.length) {
         updateTypingStatus(`${text("working")} · ${directCalls.map((call) => call.name).join("、")}`);
+        addTaskSteps(directCalls.length);
         const results = await executeToolCalls(directCalls, completedMutations, completedReads);
         trace.push({ calls: directCalls, results });
         reply = window.XiaoHeTools?.summarizeTrace?.(trace) || "";
@@ -842,10 +920,12 @@
             break;
           }
           updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
+          addTaskSteps(response.toolCalls.length);
           const results = await executeToolCalls(response.toolCalls, completedMutations, completedReads);
           trace.push({ calls: response.toolCalls, results });
         }
         if (!reply && trace.length) {
+          renderTaskProgress(text("taskFinalizing"), "");
           updateTypingStatus(text("verifying"));
           const finalResponse = await requestReply(message, previous, attachment, trace, true);
           reply = cleanAssistantText(finalResponse.reply);
@@ -863,6 +943,7 @@
       }
       saveHistory();
       list.append(messageElement("assistant", reply, false));
+      finishTaskProgress();
       setStatus("online");
       if (window.XiaoHeTools?.takeReloadRequest?.()) {
         state.messages.push({ role: "assistant", content: text("refreshing") });
@@ -871,6 +952,7 @@
         window.setTimeout(() => window.location.reload(), 1400);
       }
     } catch (error) {
+      resetTaskProgress();
       list.querySelector("[data-agent-typing]")?.remove();
       const noBackend = error?.message === "NO_BACKEND";
       const notConfigured = error?.code === "AGENT_NOT_CONFIGURED";

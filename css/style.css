@@ -3833,6 +3833,69 @@ body.lesson-is-dragging {
   animation: agent-pulse 1.2s ease-in-out infinite;
 }
 
+.agent-task-progress {
+  display: grid;
+  padding: 9px 14px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+  gap: 6px;
+}
+
+.agent-task-progress[hidden] {
+  display: none;
+}
+
+.agent-task-progress-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-task-progress-copy strong {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-task-progress-copy span,
+.agent-task-progress small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.agent-task-progress progress {
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+  appearance: none;
+}
+
+.agent-task-progress progress::-webkit-progress-bar {
+  background: var(--line);
+}
+
+.agent-task-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.agent-task-progress progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.agent-task-progress small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @keyframes agent-pulse {
   50% { opacity: 0.25; }
 }

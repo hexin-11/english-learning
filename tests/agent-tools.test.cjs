@@ -136,6 +136,10 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.match(agentSource, /completedMutations\.get\(key\)/);
   assert.match(agentSource, /completedReads\.get\(key\)/);
   assert.match(agentSource, /requestReply\(message, previous, attachment, trace, true\)/);
+  assert.match(agentSource, /Promise\.all\(\[\.\.\.readGroups\.values\(\)\]\.map/);
+  assert.match(agentSource, /repeatedCallSkipped: true/);
+  assert.match(agentSource, /for \(const \{ call, index \} of writeCalls\) await executeOne/);
+  assert.match(agentSource, /agent-task-progress/);
   assert.match(agentSource, /matchDirectCommand/);
   assert.match(agentSource, /XiaoHeTools\.verify\(call, result\)/);
   assert.match(agentSource, /ACTION_NOT_VERIFIED/);
