@@ -17,6 +17,7 @@ const allowedHeaders = { Origin: "https://hexin-11.github.io" };
 const healthResponse = await worker.fetch(new Request("https://worker.test/health", { headers: allowedHeaders }), env);
 assert.equal(healthResponse.status, 200);
 assert.equal(healthResponse.headers.get("Access-Control-Allow-Origin"), "https://hexin-11.github.io");
+assert.match(healthResponse.headers.get("Cache-Control"), /max-age=60/);
 const health = await healthResponse.json();
 assert.equal(health.ok, true);
 assert.equal(health.runtime, "cloudflare-worker");
@@ -26,6 +27,12 @@ assert.equal(health.capabilities.lessonVision, true);
 assert.equal(health.capabilities.lessonStructure, true);
 assert.equal(health.capabilities.tools, true);
 assert.equal(health.capabilities.approvals, true);
+
+const localFileResponse = await worker.fetch(new Request("https://worker.test/health", {
+  headers: { Origin: "null" }
+}), env);
+assert.equal(localFileResponse.status, 200);
+assert.equal(localFileResponse.headers.get("Access-Control-Allow-Origin"), "*");
 
 const blockedResponse = await worker.fetch(new Request("https://worker.test/health", {
   headers: { Origin: "https://malicious.example" }

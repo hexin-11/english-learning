@@ -213,6 +213,7 @@
     messages: loadHistory(),
     busy: false,
     checked: false,
+    checkPromise: null,
     attachment: null,
     processingImage: false,
     taskProgress: { completed: 0, total: 0 },
@@ -535,19 +536,24 @@
       if (!apiBase()) setStatus("offline");
       return;
     }
-    setStatus("checking");
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 5000);
-    try {
-      const response = await fetch(`${apiBase()}/health`, { cache: "no-store", signal: controller.signal });
-      const payload = await response.json().catch(() => ({}));
-      state.checked = response.ok;
-      setStatus(response.ok && payload.configured ? "online" : response.ok ? "unconfigured" : "offline");
-    } catch (_error) {
-      setStatus("offline");
-    } finally {
-      window.clearTimeout(timer);
-    }
+    if (state.checkPromise) return state.checkPromise;
+    state.checkPromise = (async () => {
+      setStatus("checking");
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(`${apiBase()}/health`, { cache: "default", signal: controller.signal });
+        const payload = await response.json().catch(() => ({}));
+        state.checked = response.ok;
+        setStatus(response.ok && payload.configured ? "online" : response.ok ? "unconfigured" : "offline");
+      } catch (_error) {
+        setStatus("offline");
+      } finally {
+        window.clearTimeout(timer);
+        state.checkPromise = null;
+      }
+    })();
+    return state.checkPromise;
   }
 
   function setBusy(busy) {
@@ -1064,6 +1070,7 @@
         placePanel();
       });
     });
+    window.setTimeout(checkBackend, 250);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });

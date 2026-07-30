@@ -95,7 +95,15 @@ function allowedOrigins(env) {
 
 function corsHeaders(request, env) {
   const origin = String(request.headers.get("Origin") || "").replace(/\/$/, "");
-  if (!origin || origin === "null") return {};
+  if (!origin) return {};
+  if (origin === "null") {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400"
+    };
+  }
   if (!allowedOrigins(env).has(origin)) return null;
   return {
     "Access-Control-Allow-Origin": origin,
@@ -563,7 +571,7 @@ export async function handleRequest(request, env) {
       model,
       configured: Boolean(String(env.GEMINI_API_KEY || "").trim()),
       capabilities: { text: true, vision: true, lessonVision: true, lessonStructure: true, tools: true, planning: true, approvals: true }
-    }, 200, cors);
+    }, 200, { ...cors, "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
   }
   const isChatRequest = request.method === "POST" && url.pathname === "/api/chat";
   const isLessonVisionRequest = request.method === "POST" && url.pathname === "/api/lesson-vision";
