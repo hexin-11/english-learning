@@ -372,6 +372,12 @@
     setLauncherPosition(position.x * maxLeft, position.y * maxTop, false);
   }
 
+  function completedConversationHistory(messages) {
+    const history = Array.isArray(messages) ? messages.slice(-MAX_SENT_HISTORY) : [];
+    while (history.length && history.at(-1)?.role === "user") history.pop();
+    return history;
+  }
+
   function triggerCatLaugh() {
     const launcher = $("#agent-launcher");
     window.clearTimeout(state.catReactionTimer);
@@ -891,7 +897,7 @@
     const message = typedMessage || (attachment ? text("imagePrompt") : "");
     if (!message || state.busy || state.processingImage) return;
 
-    const previous = state.messages.slice(-MAX_SENT_HISTORY);
+    const previous = completedConversationHistory(state.messages);
     window.XiaoHeMemory?.observeUserMessage?.(message);
     state.messages.push({ role: "user", content: message, imagePreview: attachment?.preview || "" });
     saveHistory();

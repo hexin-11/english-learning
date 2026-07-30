@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "js", "agent-tools.js"), "utf8");
 const agentSource = fs.readFileSync(path.join(root, "js", "agent.js"), "utf8");
+const promptSource = fs.readFileSync(path.join(root, "worker", "src", "prompt.mjs"), "utf8");
 const savedLessons = [];
 const prepended = [];
 const presentations = [];
@@ -13,6 +14,9 @@ const dictionaryFavorites = [];
 const localStorageValues = new Map([
   ["hexin-spelling-preferences:v1", JSON.stringify({ mistakes: { word: ["word:lesson-1:hello"], sentence: [] } })]
 ]);
+assert.match(agentSource, /function completedConversationHistory\(messages\)/);
+assert.match(agentSource, /const previous = completedConversationHistory\(state\.messages\)/);
+assert.match(promptSource, /绝不能解释 hiagent/);
 const baseLesson = {
   id: "lesson-1",
   number: 1,
