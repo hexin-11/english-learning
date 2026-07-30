@@ -49,9 +49,13 @@ assert.equal(windowObject.LearningStorage.getState().settings.hideEnglish, true)
 
 assert.match(indexSource, /id="hide-english"/);
 assert.match(indexSource, /id="spelling-mistake-count"/);
+assert.match(indexSource, /id="spelling-question-track-fill"/);
+assert.match(indexSource, /data-spelling-step="1"/);
+assert.match(indexSource, /id="spelling-input-status"/);
 assert.match(appSource, /hide-english-content/);
 assert.match(spellingSource, /showFeedback\("wrong", t\("wrongFeedback"\), question\.english\)/);
 assert.match(spellingSource, /addMistake\(question\);\s*queueMistakeReview\(question\);/);
+assert.match(spellingSource, /function setActiveStep\(step\)/);
 assert.match(styleSource, /\.hide-english-content \.sentence-english/);
 
 console.log("Spelling mistake review and hidden-English tests passed.");

@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark">
   <link rel="preconnect" href="https://xiaohe-english-agent-hexin11.hexin20021111.workers.dev" crossorigin>
   <title>何鑫天下第一帅</title>
-  <link rel="stylesheet" href="css/style.css?v=20260731importcancel">
+  <link rel="stylesheet" href="css/style.css?v=20260731spelling">
   <script src="data/lessons.js?v=20260722b" defer></script>
   <script src="js/course-privacy.js?v=20260722a" defer></script>
   <script src="js/public-content.js?v=20260722b" defer></script>
@@ -30,7 +30,7 @@
   <script src="js/agent.js?v=20260731connection" defer></script>
   <script src="js/lesson-editor.js?v=20260723b" defer></script>
   <script src="js/exporter.js?v=20260722j" defer></script>
-  <script src="js/spelling.js?v=20260723mistakes" defer></script>
+  <script src="js/spelling.js?v=20260731ui" defer></script>
   <script src="js/app.js?v=20260723dictionaryfavorites" defer></script>
 </head>
 <body>
@@ -464,10 +464,16 @@
 
       <div class="spelling-layout">
         <section class="spelling-practice panel" aria-labelledby="spelling-question-type">
+          <div class="spelling-step-guide" aria-label="练习步骤">
+            <span class="is-active" data-spelling-step="1"><b>1</b> 听音</span>
+            <span data-spelling-step="2"><b>2</b> 拼写</span>
+            <span data-spelling-step="3"><b>3</b> 检查</span>
+          </div>
           <div class="spelling-question-meta">
             <span id="spelling-question-progress">第 1 / 1 题</span>
             <span id="spelling-question-lesson"></span>
           </div>
+          <div class="spelling-question-track" aria-hidden="true"><span id="spelling-question-track-fill"></span></div>
 
           <p class="spelling-empty" id="spelling-empty" hidden></p>
           <div id="spelling-practice-content">
@@ -475,17 +481,23 @@
               <span class="spelling-prompt-kicker" id="spelling-question-type">根据发音和中文写出英文</span>
               <p class="spelling-translation" id="spelling-translation"></p>
               <p class="spelling-hint-text" id="spelling-hint-text" hidden></p>
-              <button class="spelling-listen" id="spelling-listen" type="button">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 4V6L8 10H5Z"></path><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"></path></svg>
-                <span id="spelling-listen-label">播放发音</span>
-              </button>
+              <div class="spelling-listen-stage">
+                <i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i>
+                <button class="spelling-listen" id="spelling-listen" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 4V6L8 10H5Z"></path><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"></path></svg>
+                  <span id="spelling-listen-label">播放发音</span>
+                </button>
+              </div>
             </div>
 
             <form class="spelling-answer-form" id="spelling-form">
               <label for="spelling-word-input" id="spelling-answer-label">你的答案</label>
               <input id="spelling-word-input" type="text" aria-labelledby="spelling-answer-label" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="220" placeholder="输入英文拼写">
               <textarea id="spelling-sentence-input" rows="4" aria-labelledby="spelling-answer-label" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="600" placeholder="输入完整英文句子" hidden></textarea>
-              <span class="spelling-shortcut" id="spelling-shortcut">按 Enter 检查</span>
+              <div class="spelling-answer-meta">
+                <span id="spelling-input-status">已输入 0 个字符</span>
+                <span class="spelling-shortcut" id="spelling-shortcut">按 Enter 检查</span>
+              </div>
               <div class="spelling-answer-actions">
                 <button class="button button-quiet" id="spelling-hint" type="button">提示</button>
                 <button class="button button-quiet" id="spelling-skip" type="button">跳过</button>

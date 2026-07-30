@@ -279,6 +279,21 @@
   function setAnswerValue(value) {
     $("#spelling-word-input").value = value;
     $("#spelling-sentence-input").value = value;
+    updateInputStatus();
+  }
+
+  function updateInputStatus() {
+    const count = answerValue().trim().length;
+    $("#spelling-input-status").textContent = locale() === "zh"
+      ? `已输入 ${count} 个字符`
+      : `${count} character${count === 1 ? "" : "s"}`;
+    if (count && !answered) setActiveStep(2);
+  }
+
+  function setActiveStep(step) {
+    document.querySelectorAll("[data-spelling-step]").forEach((item) => {
+      item.classList.toggle("is-active", Number(item.dataset.spellingStep) === step);
+    });
   }
 
   function setAnswerLocked(locked) {
@@ -303,15 +318,18 @@
     if (empty) {
       $("#spelling-empty").textContent = t("noQuestions");
       $("#spelling-question-progress").textContent = t("question", { current: 0, total: 0 });
+      $("#spelling-question-track-fill").style.width = "0%";
       return;
     }
 
     answered = false;
     attemptedCurrent = false;
+    setActiveStep(1);
     resetFeedback();
     setAnswerValue("");
     setAnswerLocked(false);
     $("#spelling-question-progress").textContent = t("question", { current: index + 1, total: questions.length });
+    $("#spelling-question-track-fill").style.width = `${((index + 1) / questions.length) * 100}%`;
     $("#spelling-question-type").textContent = t(mode === "word" ? "wordPrompt" : "sentencePrompt");
     $("#spelling-question-lesson").textContent = `${t("lesson")} ${question.lessonNumber} · ${question.lessonTitle}`;
     $("#spelling-translation").textContent = question.chinese || question.lessonTitle;
@@ -343,6 +361,7 @@
     const question = currentQuestion();
     if (!question) return;
     window.SpeechController?.speak?.(question.english);
+    if (!answerValue().trim()) setActiveStep(1);
     $("#spelling-listen-label").textContent = t("listenAgain");
   }
 
@@ -360,6 +379,7 @@
     const feedback = $("#spelling-feedback");
     feedback.dataset.state = state;
     feedback.hidden = false;
+    setActiveStep(3);
     $("#spelling-feedback-title").textContent = title;
     $("#spelling-expected").textContent = answer ? `${t("expected")}：${answer}` : "";
   }
@@ -460,6 +480,8 @@
         checkAnswer();
       }
     });
+    $("#spelling-word-input").addEventListener("input", updateInputStatus);
+    $("#spelling-sentence-input").addEventListener("input", updateInputStatus);
     $("#spelling-sentence-input").addEventListener("keydown", (event) => {
       if (event.key === "Enter" && event.ctrlKey && !event.isComposing) {
         event.preventDefault();
