@@ -692,7 +692,10 @@
       <article class="dictionary-entry">
         <div class="dictionary-word-row">
           <div>
-            <h2 lang="en">${escapeHTML(result.word)}</h2>
+            <div class="dictionary-headword">
+              ${speakerButtonMarkup(result.word, "online-dictionary", "dictionary-word-speaker")}
+              <h2 lang="en">${escapeHTML(result.word)}</h2>
+            </div>
             <div class="dictionary-phonetics">${phonetics}</div>
           </div>
           <div class="dictionary-result-actions">

@@ -11,10 +11,13 @@ assert.match(app, /function speakerButtonMarkup\(/);
 assert.match(app, /class="speech-icon-button \$\{extraClass \|\| ""\}"/);
 assert.match(app, /speakerButtonMarkup\(word\.english, word\.lessonId, "word-speaker"\)/);
 assert.match(app, /speakerButtonMarkup\(sentence\.english, lesson\.id, "sentence-speaker"\)/);
+assert.match(app, /speakerButtonMarkup\(result\.word, "online-dictionary", "dictionary-word-speaker"\)/);
 assert.doesNotMatch(app, /<button class="word-card-main"/);
 assert.doesNotMatch(app, /<button class="sentence-speak"/);
 assert.match(css, /@keyframes speaker-wave-pulse/);
 assert.match(css, /\.speech-icon-button\.is-playing/);
+assert.match(css, /\.dictionary-headword/);
+assert.match(css, /\.dictionary-word-speaker/);
 assert.match(i18n, /"lessons\.clickRead": "点击单词前的小喇叭播放发音"/);
 
 console.log("Course speaker-button tests passed.");

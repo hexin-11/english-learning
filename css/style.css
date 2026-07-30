@@ -2866,6 +2866,23 @@ body.lesson-is-dragging {
   line-height: 1.15;
 }
 
+.dictionary-headword {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dictionary-word-speaker {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+
+.dictionary-word-speaker svg {
+  width: 21px;
+  height: 21px;
+}
+
 .dictionary-phonetics {
   display: flex;
   margin-top: 7px;
