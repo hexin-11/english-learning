@@ -722,12 +722,12 @@
     }
   }
 
-  async function requestReply(message, history, attachment, trace, finalOnly = false) {
+  async function requestReply(message, history, attachment, trace, finalOnly = false, onDelta = null) {
     if (!apiBase()) throw new Error("NO_BACKEND");
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${apiBase()}/api/chat`, {
+      const response = await fetch(`${apiBase()}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -740,12 +740,36 @@
         }),
         signal: controller.signal
       });
-      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
         const error = new Error(payload.message || "REQUEST_FAILED");
         error.code = payload.error;
         throw error;
       }
+      if (!response.body) throw new Error("EMPTY_REPLY");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = done ? "" : lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === "delta" && typeof event.text === "string") onDelta?.(event.text);
+          if (event.type === "done") completed = event;
+          if (event.type === "error") {
+            const streamError = new Error(event.error || "REQUEST_FAILED");
+            streamError.code = event.error;
+            throw streamError;
+          }
+        }
+        if (done) break;
+      }
+      const payload = completed || {};
       const toolCalls = Array.isArray(payload.toolCalls) ? payload.toolCalls.slice(0, 6).filter((call) => {
         return call && typeof call.name === "string" && call.args && typeof call.args === "object";
       }) : [];
@@ -917,6 +941,29 @@
       const completedMutations = new Map();
       const completedReads = new Map();
       let reply = "";
+      let streamedReply = "";
+      let streamItem = null;
+      const ensureTyping = () => {
+        if (!list.querySelector("[data-agent-typing]")) list.append(messageElement("assistant", text("typing"), true));
+      };
+      const discardStream = () => {
+        streamItem?.remove();
+        streamItem = null;
+        streamedReply = "";
+      };
+      const showDelta = (delta) => {
+        if (!delta) return;
+        streamedReply += delta;
+        list.querySelector("[data-agent-typing]")?.remove();
+        if (!streamItem) {
+          streamItem = messageElement("assistant", "", false);
+          streamItem.dataset.agentStreaming = "true";
+          list.append(streamItem);
+        }
+        const body = streamItem.querySelector("p");
+        if (body) body.textContent = cleanAssistantText(streamedReply);
+        scrollToLatest();
+      };
       const directCalls = attachment ? [] : (window.XiaoHeTools?.matchDirectCommand?.(message) || []);
       if (directCalls.length) {
         updateTypingStatus(`${text("working")} · ${directCalls.map((call) => call.name).join("、")}`);
@@ -926,11 +973,13 @@
         reply = window.XiaoHeTools?.summarizeTrace?.(trace) || "";
       } else {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-          const response = await requestReply(message, previous, attachment, trace);
+          const response = await requestReply(message, previous, attachment, trace, false, showDelta);
           if (!response.toolCalls.length) {
             reply = cleanAssistantText(response.reply);
             break;
           }
+          discardStream();
+          ensureTyping();
           updateTypingStatus(`${text("working")} · ${response.toolCalls.map((call) => call.name).join("、")}`);
           addTaskSteps(response.toolCalls.length);
           const results = await executeToolCalls(response.toolCalls, completedMutations, completedReads);
@@ -939,7 +988,7 @@
         if (!reply && trace.length) {
           renderTaskProgress(text("taskFinalizing"), "");
           updateTypingStatus(text("verifying"));
-          const finalResponse = await requestReply(message, previous, attachment, trace, true);
+          const finalResponse = await requestReply(message, previous, attachment, trace, true, showDelta);
           reply = cleanAssistantText(finalResponse.reply);
         }
       }
@@ -954,7 +1003,13 @@
         window.XiaoHeMemory?.recordTask?.(message, reply, traceSucceeded);
       }
       saveHistory();
-      list.append(messageElement("assistant", reply, false));
+      if (streamItem) {
+        const body = streamItem.querySelector("p");
+        if (body) body.textContent = reply;
+        delete streamItem.dataset.agentStreaming;
+      } else {
+        list.append(messageElement("assistant", reply, false));
+      }
       finishTaskProgress();
       setStatus("online");
       if (window.XiaoHeTools?.takeReloadRequest?.()) {
@@ -966,6 +1021,7 @@
     } catch (error) {
       resetTaskProgress();
       list.querySelector("[data-agent-typing]")?.remove();
+      list.querySelector("[data-agent-streaming]")?.remove();
       const noBackend = error?.message === "NO_BACKEND";
       const notConfigured = error?.code === "AGENT_NOT_CONFIGURED";
       const content = noBackend ? text("noBackend") : error?.code === "TIMEOUT" ? text("timeout") : (error?.message && error.message !== "REQUEST_FAILED" ? error.message : text("failed"));

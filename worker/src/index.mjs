@@ -423,6 +423,121 @@ async function createAgentReply(env, message, history, image, context, trace, fi
   }
 }
 
+function streamLine(value) {
+  return `${JSON.stringify(value)}\n`;
+}
+
+function geminiStreamEvents(body, onEvent) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  return async function consume(reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, "\n");
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary >= 0) {
+        const block = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const data = block.split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .join("\n");
+        if (data && data !== "[DONE]") onEvent(JSON.parse(data));
+        boundary = buffer.indexOf("\n\n");
+      }
+      if (done) {
+        const data = buffer.trim().replace(/^data:\s*/, "");
+        if (data && data !== "[DONE]") onEvent(JSON.parse(data));
+        return;
+      }
+    }
+  }(body.getReader());
+}
+
+async function createAgentStream(env, message, history, image, context, trace, finalOnly = false) {
+  const model = String(env.GEMINI_MODEL || "gemini-flash-latest").trim();
+  const profile = agentGenerationConfig(message, image, trace, model);
+  let useThinking = Boolean(profile.config.thinkingConfig);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let upstream;
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+      upstream = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": env.GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: AGENT_PROMPT }] },
+          contents: geminiContents(history, message, image, context, trace),
+          ...agentToolConfig(!finalOnly),
+          generationConfig: {
+            ...profile.config,
+            ...(!useThinking ? { thinkingConfig: undefined } : {})
+          }
+        }),
+        signal: controller.signal
+      });
+      if (upstream.ok && upstream.body) break;
+      const payload = await upstream.json().catch(() => ({}));
+      if (upstream.status === 400 && useThinking) {
+        useThinking = false;
+        continue;
+      }
+      const upstreamCode = payload?.error?.status || payload?.error?.code || "unknown";
+      if (upstream.status === 429 || upstreamCode === "RESOURCE_EXHAUSTED") throw publicError("RATE_LIMITED", 429, upstream.status);
+      if ([400, 401, 403].includes(upstream.status)) throw publicError("AGENT_NOT_CONFIGURED", 503, upstream.status);
+      throw publicError("UPSTREAM_UNAVAILABLE", 502, upstream.status);
+    }
+    if (!upstream?.ok || !upstream.body) throw publicError("UPSTREAM_UNAVAILABLE", 502);
+  } catch (error) {
+    clearTimeout(timer);
+    if (error?.name === "AbortError") throw publicError("TIMEOUT", 504);
+    throw error;
+  }
+
+  const encoder = new TextEncoder();
+  const output = new ReadableStream({
+    async start(streamController) {
+      const parts = [];
+      let rawReply = "";
+      try {
+        await geminiStreamEvents(upstream.body, (payload) => {
+          const eventParts = payload?.candidates?.[0]?.content?.parts || [];
+          eventParts.forEach((part) => {
+            parts.push(part);
+            if (typeof part?.text === "string" && !part.thought) {
+              rawReply += part.text;
+              streamController.enqueue(encoder.encode(streamLine({ type: "delta", text: part.text })));
+            }
+          });
+        });
+        const toolCalls = extractToolCalls({ candidates: [{ content: { parts } }] });
+        const reply = cleanAssistantText(rawReply);
+        if (!reply && !toolCalls.length) throw publicError("EMPTY_RESPONSE", 502);
+        streamController.enqueue(encoder.encode(streamLine({
+          type: "done",
+          reply,
+          toolCalls,
+          provider: "gemini",
+          model,
+          reasoningMode: profile.mode
+        })));
+      } catch (error) {
+        const code = error?.name === "AbortError" ? "TIMEOUT" : (error?.message || "UPSTREAM_UNAVAILABLE");
+        streamController.enqueue(encoder.encode(streamLine({ type: "error", error: code })));
+      } finally {
+        clearTimeout(timer);
+        streamController.close();
+      }
+    }
+  });
+  return output;
+}
+
 async function createLessonVision(env, image) {
   const model = String(env.GEMINI_MODEL || "gemini-flash-latest").trim();
   const controller = new AbortController();
@@ -570,13 +685,14 @@ export async function handleRequest(request, env) {
       provider: "gemini",
       model,
       configured: Boolean(String(env.GEMINI_API_KEY || "").trim()),
-      capabilities: { text: true, vision: true, lessonVision: true, lessonStructure: true, tools: true, planning: true, approvals: true }
+      capabilities: { text: true, streaming: true, vision: true, lessonVision: true, lessonStructure: true, tools: true, planning: true, approvals: true }
     }, 200, { ...cors, "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
   }
   const isChatRequest = request.method === "POST" && url.pathname === "/api/chat";
+  const isChatStreamRequest = request.method === "POST" && url.pathname === "/api/chat/stream";
   const isLessonVisionRequest = request.method === "POST" && url.pathname === "/api/lesson-vision";
   const isLessonStructureRequest = request.method === "POST" && url.pathname === "/api/lesson-structure";
-  if (!isChatRequest && !isLessonVisionRequest && !isLessonStructureRequest) return json({ error: "NOT_FOUND" }, 404, cors);
+  if (!isChatRequest && !isChatStreamRequest && !isLessonVisionRequest && !isLessonStructureRequest) return json({ error: "NOT_FOUND" }, 404, cors);
   if (!String(env.GEMINI_API_KEY || "").trim()) {
     return json({ error: "AGENT_NOT_CONFIGURED", message: "小何的后端还没有配置密钥。" }, 503, cors);
   }
@@ -614,6 +730,18 @@ export async function handleRequest(request, env) {
     const trace = cleanToolTrace(body.trace);
     if (!message) return json({ error: "EMPTY_MESSAGE", message: "请输入想对小何说的话。" }, 400, cors);
     const finalOnly = body.finalOnly === true && trace.length > 0;
+    if (isChatStreamRequest) {
+      const stream = await createAgentStream(env, message, history, image, context, trace, finalOnly);
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-store, no-transform",
+          "X-Content-Type-Options": "nosniff",
+          ...cors
+        }
+      });
+    }
     const result = await createAgentReply(env, message, history, image, context, trace, finalOnly);
     return json({
       reply: result.reply || "",

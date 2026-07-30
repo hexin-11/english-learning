@@ -16,6 +16,9 @@ const localStorageValues = new Map([
 ]);
 assert.match(agentSource, /function completedConversationHistory\(messages\)/);
 assert.match(agentSource, /const previous = completedConversationHistory\(state\.messages\)/);
+assert.match(agentSource, /\/api\/chat\/stream/);
+assert.match(agentSource, /response\.body\.getReader\(\)/);
+assert.match(agentSource, /dataset\.agentStreaming/);
 assert.match(promptSource, /绝不能解释 hiagent/);
 const baseLesson = {
   id: "lesson-1",
@@ -139,7 +142,7 @@ vm.runInNewContext(source, { window, console, Date, Math }, { filename: "agent-t
   assert.match(agentSource, /XiaoHeTools\?\.summarizeTrace\?\.\(trace\)/);
   assert.match(agentSource, /completedMutations\.get\(key\)/);
   assert.match(agentSource, /completedReads\.get\(key\)/);
-  assert.match(agentSource, /requestReply\(message, previous, attachment, trace, true\)/);
+  assert.match(agentSource, /requestReply\(message, previous, attachment, trace, true, showDelta\)/);
   assert.match(agentSource, /Promise\.all\(\[\.\.\.readGroups\.values\(\)\]\.map/);
   assert.match(agentSource, /repeatedCallSkipped: true/);
   assert.match(agentSource, /for \(const \{ call, index \} of writeCalls\) await executeOne/);

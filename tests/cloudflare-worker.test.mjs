@@ -23,6 +23,7 @@ assert.equal(health.ok, true);
 assert.equal(health.runtime, "cloudflare-worker");
 assert.equal(health.configured, true);
 assert.equal(health.capabilities.vision, true);
+assert.equal(health.capabilities.streaming, true);
 assert.equal(health.capabilities.lessonVision, true);
 assert.equal(health.capabilities.lessonStructure, true);
 assert.equal(health.capabilities.tools, true);
@@ -97,6 +98,32 @@ try {
   assert.match(wordStateTool.description, /任意英文单词/);
   assert.match(upstreamBody.systemInstruction.parts[0].text, /verification\.verified/);
   assert.equal(upstreamBody.toolConfig.functionCallingConfig.mode, "AUTO");
+
+  globalThis.fetch = async (url, options) => {
+    upstreamRequest = { url: String(url), options };
+    const sse = [
+      `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hello" }] } }] })}\n\n`,
+      `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: " there!" }] } }] })}\n\n`
+    ];
+    return new Response(new ReadableStream({
+      start(controller) {
+        sse.forEach((chunk) => controller.enqueue(new TextEncoder().encode(chunk)));
+        controller.close();
+      }
+    }), { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  };
+  const streamResponse = await worker.fetch(new Request("https://worker.test/api/chat/stream", {
+    method: "POST",
+    headers: { ...allowedHeaders, "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.71" },
+    body: JSON.stringify({ message: "Hi", history: [] })
+  }), env);
+  assert.equal(streamResponse.status, 200);
+  assert.match(streamResponse.headers.get("Content-Type"), /application\/x-ndjson/);
+  assert.match(upstreamRequest.url, /gemini-test:streamGenerateContent\?alt=sse$/);
+  const streamEvents = (await streamResponse.text()).trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(streamEvents.filter((event) => event.type === "delta").map((event) => event.text), ["Hello", " there!"]);
+  assert.equal(streamEvents.at(-1).type, "done");
+  assert.equal(streamEvents.at(-1).reply, "Hello there!");
 
   const thinkingBodies = [];
   globalThis.fetch = async (_url, options) => {
